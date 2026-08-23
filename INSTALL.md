@@ -159,23 +159,16 @@ current page.
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
-|---|---|---|
-| `buildSpec is not defined` | You're running the server's bundled plugin, not BetterBridge | Run **BetterBridge** from Plugins → Development. Remove the other one so you can't pick it by mistake. |
-| Stuck on "Looking for your AI app…" | MCP server isn't running, or is on a port outside 9223–9232 | Start the server; confirm its port is in that range |
-| Connection drops and reconnects every ~30s; Claude never sees a file | The plugin's `FILE_INFO` has a null `fileKey`, so the server never identifies it. `figma.fileKey` is a private API. | Confirm `"enablePrivatePluginApi": true` is in `manifest.json`, then re-import. |
-| Plugin says **Connected**, Claude says **not connected** | More than one MCP server is running. Two can both hold "port 9223" — one on IPv4, one on IPv6 — without either reporting a conflict, so your plugin attaches to one while Claude talks to the other. | `lsof -nP -i TCP:9223-9232` to see which have connections. Usually caused by two Claude sessions open at once — close one. |
-| "Something broke" | Plugin hit an internal error | Close the plugin window and reopen it |
-| Your `code.js` / `ui.html` edits do nothing | **Figma caches plugin code at the application level** | **Re-import the manifest.** Restarting the plugin is not enough. This one catches everybody. |
-| `unresolved: ["Button/Primary"]` | Component name is wrong or not in your registry | Fix the name — don't let Claude build a lookalike instead |
-| `unresolved: ["var:spacing/md"]` | That variable name doesn't exist in the file | Check your real variable names |
-| `unresolved: ["font:…"]` | Font isn't available; it fell back to Inter | Install the font, or specify one you have |
-| `failed` on a `patchSpec` op | Usually a stale or wrong node id | Re-read the current ids |
+Full table — install problems and usage errors both — is in the
+**[README troubleshooting section](README.md#troubleshooting)**. Kept in one place so the two
+docs can't drift apart.
 
-Nothing is ever silently faked — if it can't resolve something, it tells you.
-That's the design. Report the `unresolved` list rather than working around it.
+The three that catch almost everyone:
 
----
+- **`buildSpec is not defined`** → you're running the server's bundled plugin, not BetterBridge.
+- **Your edits do nothing** → Figma caches plugin code. Re-import the manifest; if that fails,
+  quit Figma entirely (⌘Q) and reopen.
+- **Reconnects every ~30s** → `manifest.json` is missing `"enablePrivatePluginApi": true`.
 
 ## What to report back
 
@@ -209,9 +202,10 @@ or just message me directly.
   dependencies, no install). What it *cannot* check is real font availability,
   real auto-layout rendering, or real variable-mode resolution. Only Figma can.
   That's exactly the gap testers close.
-- **Measured savings: roughly 75–80% fewer output tokens on the create path**,
-  on one product-card build, spec vs. hand-written equivalent. Registry reuse
-  and the edit path add more on top across a session of revisions.
+- **Measured savings: ~30% on creating, ~70% on reusing a component** — one 18-node build,
+  spec vs. hand-written imperative equivalent, character counts ÷ 4. Single sample, and the same
+  person wrote both sides. See [What it actually saves](README.md#what-it-actually-saves) for the
+  caveats that matter. Your own numbers on your own files are worth more than mine.
 - **Token savings only become dollar savings under metered/API billing.** On a
   fixed Claude plan, this shows up as more headroom under your usage limits,
   not a smaller bill.
