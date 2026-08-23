@@ -104,6 +104,37 @@ these functions automatically instead of writing imperative code out of habit.
 
 ---
 
+## The other half: reading your file
+
+Building is only half of what costs tokens. The other half is Claude **looking** at your Figma
+file — and BetterBridge does nothing about that automatically. It's a habit, not a feature, and
+it's easy to spend more here than `buildSpec` saves.
+
+**Why reading is expensive.** When Claude inspects a Figma page, it gets back every layer with
+every property — including all the defaults nobody set. A busy page can be tens of thousands of
+tokens in a single call. For comparison, the whole dashboard spec in the section above was about
+500. One careless "have a look at this page" can cost more than a week of building.
+
+**Three habits that cost nothing to adopt:**
+
+1. **Select the thing first, then ask.** "Look at this page" reads everything. Select the frame
+   you care about and say "look at what I've selected" — same answer, a fraction of the size.
+2. **Ask for a screenshot when the question is visual.** "Does this look right?" is answered by a
+   picture, not by a layer tree. A screenshot runs roughly 1,000–2,000 tokens; a full tree read of
+   a real page is often far more. But screenshots aren't free either — one when you need to see
+   the result, not one after every change.
+3. **Don't re-read to confirm success.** `buildSpec` and `patchSpec` already return the node id,
+   name, size, and counts. That's usually enough to know it worked.
+
+**When you genuinely need the structure back**, use `extract-compact.js` — paste its contents as
+the body of a `figma_execute` call. It walks your **current selection** and returns one short line
+per layer instead of raw node objects: skips hidden layers, drops default values, swaps raw
+numbers and hex for your variable names where they're bound, and — the important part — refuses to
+descend into component instances, listing them as `→ instance of Button/Primary` instead of
+dumping their internals.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Cause | Fix |

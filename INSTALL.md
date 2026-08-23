@@ -125,9 +125,11 @@ The three that catch almost everyone:
 - **This is a fork, maintained by us.** Upstream updates mean re-applying our
   changes by hand. The diff is deliberately small — see
   [Files changed vs upstream](README.md#files-changed-vs-upstream).
-- **Read-side discipline is separate.** One careless whole-page read can cost
-  more tokens than a week of `buildSpec` calls saves. See `extract-compact.js`
-  and the read-side rules in `CLAUDE.md`.
+- **Building is only half the cost — reading your file is the other half.** Asking Claude to
+  "look at this page" can pull back every layer and every property at once, which is often far
+  more expensive than anything you save by building efficiently. Select the specific frame before
+  asking, and ask for a screenshot when the question is "does this look right." See
+  [The other half: reading your file](README.md#the-other-half-reading-your-file).
 
 ---
 
