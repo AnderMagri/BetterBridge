@@ -8,6 +8,11 @@ at the bottom — that's the part we actually need from you.
 Takes about 10 minutes. You need **Figma Desktop** (browser Figma cannot load
 development plugins) and whatever machine you already run Claude Code on.
 
+**Windows, macOS, and Linux all work.** The plugin runs inside Figma and the server is Node, so
+neither is platform-specific. Only a couple of commands differ, and both versions are given where
+they come up. Everything below was tested on macOS — if something reads as Mac-only on Windows,
+that's a docs bug worth reporting.
+
 ---
 
 ## What you're installing
@@ -167,7 +172,7 @@ The three that catch almost everyone:
 
 - **`buildSpec is not defined`** → you're running the server's bundled plugin, not BetterBridge.
 - **Your edits do nothing** → Figma caches plugin code. Re-import the manifest; if that fails,
-  quit Figma entirely (⌘Q) and reopen.
+  quit Figma completely (⌘Q on macOS, close every window on Windows) and reopen.
 - **Reconnects every ~30s** → `manifest.json` is missing `"enablePrivatePluginApi": true`.
 
 ## What to report back

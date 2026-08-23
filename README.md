@@ -109,8 +109,8 @@ these functions automatically instead of writing imperative code out of habit.
 | Symptom | Cause | Fix |
 |---|---|---|
 | `buildSpec is not defined` | You're running the server's bundled plugin, not BetterBridge | Run **BetterBridge** from Plugins → Development. Remove the other one so you can't pick it by mistake. |
-| Your edits to `code.js` / `ui.html` do nothing | **Figma caches plugin code at the app level** | **Re-import the manifest.** Restarting the plugin isn't enough. If it still won't take, quit Figma entirely (⌘Q) and reopen. |
-| Plugin shows **Connected**, Claude says **not connected** | Two MCP servers running. Both can hold "port 9223" — one on IPv4, one on IPv6 — without either reporting a conflict, so your plugin attaches to one while Claude talks to the other. | `lsof -nP -i TCP:9223-9232` to see which has connections. Usually two Claude sessions open at once — close one. |
+| Your edits to `code.js` / `ui.html` do nothing | **Figma caches plugin code at the app level** | **Re-import the manifest.** Restarting the plugin isn't enough. If it still won't take, quit Figma completely — ⌘Q on macOS, close every window on Windows — and reopen. |
+| Plugin shows **Connected**, Claude says **not connected** | Two MCP servers running. Both can hold "port 9223" — one on IPv4, one on IPv6 — without either reporting a conflict, so your plugin attaches to one while Claude talks to the other. | See which server has connections, then close the extra Claude session. **macOS/Linux:** `lsof -nP -i TCP:9223-9232` · **Windows:** `netstat -ano \| findstr :9223` |
 | Connection drops and reconnects every ~30s | The plugin's `FILE_INFO` has a null `fileKey`, so the server never identifies it | Check `manifest.json` still has `"enablePrivatePluginApi": true` — `figma.fileKey` is a private API and doesn't work without it. Re-import after fixing. |
 | Stuck on "Looking for your AI app…" | MCP server isn't running, or is on a port outside 9223–9232 | Start the server; confirm its port is in that range |
 | "Something broke" in the plugin | Internal error | Close the plugin window and reopen it |
