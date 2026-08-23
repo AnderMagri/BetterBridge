@@ -161,10 +161,34 @@ If all seven hold up, it's ready to show your team.
 
 ## Setup per project
 
-1. Copy `figma.manifest.example.json` into your project folder as
-   `figma.manifest.json` and fill in real components — or generate the
-   `components` section by calling `manifestSummary()` and pasting the result
-   in directly.
+1. Create `figma.manifest.json` in your project folder. Don't hand-write it —
+   run `manifestSummary()` and paste the result straight into `components`:
+
+   ```json
+   {
+     "components": {
+       "Button/Primary": {
+         "nodeId": "1:234",
+         "key": null,
+         "props": ["label", "State", "Size"],
+         "slots": ["media"],
+         "notes": "State=Default|Hover|Disabled"
+       }
+     },
+     "tokens": {
+       "color":   ["color/surface/", "color/text/", "color/brand/"],
+       "spacing": ["spacing/xs", "spacing/sm", "spacing/md", "spacing/lg"],
+       "radius":  ["radius/sm", "radius/md", "radius/lg", "radius/full"]
+     }
+   }
+   ```
+
+   `nodeId` is enough for local components in the current file. `key` is for
+   components published to a team library and survives across files — prefer
+   `key` when you have it, include both when you can. `tokens` is optional: it
+   just tells Claude which token prefixes are real so it stops inventing names.
+   Only add a component **once it's stable** — mapping one you're still
+   redesigning means re-mapping it every iteration.
 2. Copy `CLAUDE.md` into the project root so Claude reaches for `buildSpec`/
    `patchSpec`/the registry automatically instead of writing imperative code
    out of habit.
@@ -219,5 +243,4 @@ that reason.
 - `test-builder.js` — the mock-Figma logic test suite; run with
   `node test-builder.js`
 - `CLAUDE.md` — project rules that make Claude use all of this automatically
-- `figma.manifest.example.json` — starter component registry format
 - `extract-compact.js` — the read-side token-reduction script from earlier

@@ -121,9 +121,26 @@ remember to ask:
 1. **Copy `CLAUDE.md` into your project root.** This is the part that changes
    Claude's default behaviour — without it, Claude will keep hand-writing
    imperative Figma code out of habit.
-2. **Copy `figma.manifest.example.json` into your project as `figma.manifest.json`**
-   and fill in your real components — or just run `manifestSummary()` and
-   paste the result into its `components` section.
+2. **Create `figma.manifest.json` in your project** — the component registry
+   that makes `{ use: "Button/Primary" }` resolve to your real component.
+   Don't hand-write it: run `manifestSummary()` and paste the result into
+   `components`.
+
+   ```json
+   {
+     "components": {
+       "Button/Primary": {
+         "nodeId": "1:234",
+         "key": null,
+         "props": ["label", "State"]
+       }
+     }
+   }
+   ```
+
+   `nodeId` works for local components in the current file; `key` is for
+   library-published components and survives across files. Only add a
+   component once it's stable — otherwise you re-map it every iteration.
 
 Then at the start of a session, have Claude call:
 
