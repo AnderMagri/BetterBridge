@@ -2020,16 +2020,17 @@ figma.ui.onmessage = async (msg) => {
         // Component instance reference
         if (n.type === 'INSTANCE') {
           try {
-            if (n.mainComponent) {
+            var mainC = mainComponentMap[n.id];
+            if (mainC) {
               props.mainComponent = {
-                id: n.mainComponent.id,
-                name: n.mainComponent.name,
-                key: n.mainComponent.key || null,
-                isVariant: n.mainComponent.parent && n.mainComponent.parent.type === 'COMPONENT_SET'
+                id: mainC.id,
+                name: mainC.name,
+                key: mainC.key || null,
+                isVariant: mainC.parent && mainC.parent.type === 'COMPONENT_SET'
               };
-              if (props.mainComponent.isVariant && n.mainComponent.parent) {
-                props.mainComponent.componentSetName = n.mainComponent.parent.name;
-                props.mainComponent.componentSetId = n.mainComponent.parent.id;
+              if (props.mainComponent.isVariant && mainC.parent) {
+                props.mainComponent.componentSetName = mainC.parent.name;
+                props.mainComponent.componentSetId = mainC.parent.id;
               }
             }
           } catch (e) {}
@@ -2059,6 +2060,30 @@ figma.ui.onmessage = async (msg) => {
         } catch (e) {}
 
         return props;
+      }
+
+      // Main components by instance id. documentAccess "dynamic-page" makes
+      // InstanceNode.mainComponent throw, and the walker below is synchronous,
+      // so resolve them up front the same way varNameMap is built above.
+      var mainComponentMap = {};
+      try {
+        var instanceQueue = [];
+        (function collectInstances(n, d) {
+          if (n.type === 'INSTANCE') instanceQueue.push(n);
+          if (n.children && d < maxDepth) {
+            for (var qi = 0; qi < n.children.length; qi++) {
+              try { collectInstances(n.children[qi], d + 1); } catch (e) {}
+            }
+          }
+        })(rootNode, 0);
+        for (var mi = 0; mi < instanceQueue.length; mi++) {
+          try {
+            var mcNode = await instanceQueue[mi].getMainComponentAsync();
+            if (mcNode) mainComponentMap[instanceQueue[mi].id] = mcNode;
+          } catch (e) {}
+        }
+      } catch (e) {
+        console.log('\ud83c\udf09 [Desktop Bridge] Could not resolve main components: ' + e.message);
       }
 
       // Recursive tree walker
@@ -4903,6 +4928,19 @@ figma.ui.onmessage = async (msg) => {
         } catch (e) { /* ignore */ }
       }
 
+      // Variable names by id, for the token-misuse rule. documentAccess
+      // "dynamic-page" makes figma.variables.getVariableById throw, and the
+      // walker below is synchronous, so resolve the names up front.
+      var varNamesById = {};
+      if (activeRuleSet['token-misuse']) {
+        try {
+          var tmAllVars = await figma.variables.getLocalVariablesAsync();
+          for (var tmvi = 0; tmvi < tmAllVars.length; tmvi++) {
+            varNamesById[tmAllVars[tmvi].id] = tmAllVars[tmvi].name;
+          }
+        } catch (e) { /* ignore */ }
+      }
+
       // ---- Findings storage ----
       var findings = {};
       for (var ai = 0; ai < allRuleIds.length; ai++) {
@@ -5480,7 +5518,8 @@ figma.ui.onmessage = async (msg) => {
                       var tmVarId = tmFill.boundVariables.color.id;
                       // Resolve variable name
                       try {
-                        var tmVar = figma.variables.getVariableById(tmVarId);
+                        var tmVarName_ = varNamesById[tmVarId];
+                        var tmVar = tmVarName_ ? { name: tmVarName_ } : null;
                         if (tmVar) {
                           var tmVarName = tmVar.name.toLowerCase();
                           var isBgToken = /^(bg|background|surface|fill)[\/-]/.test(tmVarName);

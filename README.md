@@ -174,7 +174,8 @@ current page.
 |---|---|
 | `code.js` | Added the builder module (`buildSpec`, `patchSpec`, `manifestSummary`, `setManifest`) before `figma.ui.onmessage`; added `BUILD_SPEC` / `PATCH_SPEC` / `MANIFEST_SUMMARY` branches after `EXECUTE_CODE`; version marked `1.39.0-betterbridge.2` |
 | `ui.html` | Added `window.buildSpec` / `patchSpec` / `manifestSummary` and matching `methodMap` entries |
-| `manifest.json` | Renamed to `BetterBridge`, id `betterbridge-mcp` |
+| `manifest.json` | Renamed to `BetterBridge`, id `betterbridge-mcp`; dropped the unused `permissions: ["teamlibrary"]` and `enablePrivatePluginApi` declarations |
+| `code.js` (upstream paths) | Fixed two `documentAccess: "dynamic-page"` violations inherited from upstream: `DEEP_GET_COMPONENT` now pre-resolves instance main components via `getMainComponentAsync()`, and the `token-misuse` lint rule pre-resolves variable names via `getLocalVariablesAsync()`. Both previously threw into a silent `catch` and dropped their output. |
 
 Everything else is untouched. Re-syncing with upstream means re-applying
 these edits — the diff is deliberately small and self-contained for exactly
