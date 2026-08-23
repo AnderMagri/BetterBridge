@@ -100,6 +100,10 @@ you) can fix the real problem instead of shipping a lookalike.
 
 ## Install
 
+> **Sharing this with someone?** Point them at [INSTALL.md](INSTALL.md) — a
+> full step-by-step guide including the MCP server half, troubleshooting, and
+> what we'd like testers to report back.
+
 1. Figma Desktop → **Plugins → Development → Import plugin from manifest…**
 2. Select this folder's `manifest.json`
 3. Run it — appears as **BetterBridge**, distinct from the original Desktop
@@ -119,8 +123,9 @@ Run this before trusting it on real work, and definitely before pointing a
 peer at it. All of it happens in one throwaway test file — nothing here
 touches your production Figma files.
 
-1. **Import and connect.** Confirm the status strip goes green (`READY`) same
-   as the original Desktop Bridge did.
+1. **Import and connect.** Confirm the status pill reads
+   **"Connected — AI can work in this file"** with a green dot, same as the
+   original Desktop Bridge did.
 2. **Smoke-test `buildSpec` with primitives only** (no registry yet):
    ```js
    return await buildSpec({ build: {
