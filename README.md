@@ -1,14 +1,26 @@
 # BetterBridge
 
-A fork of the **Figma Desktop Bridge** plugin (from Southleft's
-[`figma-console-mcp`](https://github.com/southleft/figma-console-mcp)) that
-cuts token consumption on both the read and write side of an AI-assisted
+Cuts token consumption on both the read and write side of an AI-assisted
 Figma workflow, and makes Claude reuse existing components instead of
 rebuilding them.
 
-> ⚠️ **Upstream attribution / licensing.** Everything except the additions
-> listed below is upstream code. Check the upstream project's LICENSE before
-> distributing this fork, and keep the attribution intact.
+## Download
+
+```bash
+git clone https://github.com/AnderMagri/BetterBridge.git
+```
+
+Or grab it from **https://github.com/AnderMagri/BetterBridge**
+
+**This repo is the plugin you install.** See [INSTALL.md](INSTALL.md) for the
+full setup. Don't install anything else — a similarly-named plugin will
+connect fine and then silently lack `buildSpec` / `patchSpec`, which looks
+like a bug in this one.
+
+> ⚠️ **Attribution / licensing.** BetterBridge is a fork of the Figma Desktop
+> Bridge plugin from Southleft's `figma-console-mcp` project. Everything
+> except the additions listed below is that project's code. Check its LICENSE
+> before distributing this fork, and keep the attribution intact.
 
 ## For reviewers / anyone this gets forwarded to
 
@@ -113,8 +125,8 @@ you) can fix the real problem instead of shipping a lookalike.
 > `code.js` / `ui.html`, **re-import the manifest** — restarting the plugin
 > alone will not pick up changes.
 
-Runs alongside the same MCP server as upstream (ports 9223–9232). No server
-changes required — everything here is called through the existing
+Runs against the standard `figma-console-mcp` server (ports 9223–9232). No
+server changes required — everything here is called through the existing
 `figma_execute` capability.
 
 ## Before you install: validate it
@@ -124,8 +136,7 @@ peer at it. All of it happens in one throwaway test file — nothing here
 touches your production Figma files.
 
 1. **Import and connect.** Confirm the status pill reads
-   **"Connected — AI can work in this file"** with a green dot, same as the
-   original Desktop Bridge did.
+   **"Connected — AI can work in this file"** with a green dot.
 2. **Smoke-test `buildSpec` with primitives only** (no registry yet):
    ```js
    return await buildSpec({ build: {

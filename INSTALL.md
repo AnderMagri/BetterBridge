@@ -13,8 +13,7 @@ development plugins) and whatever machine you already run Claude Code on.
 ## What you're installing
 
 BetterBridge is the **Figma plugin half** of an AI-assisted Figma workflow. It
-is a fork of Southleft's [Figma Desktop Bridge](https://github.com/southleft/figma-console-mcp)
-that adds three functions Claude can call — `buildSpec`, `patchSpec`, and
+adds three functions Claude can call — `buildSpec`, `patchSpec`, and
 `manifestSummary` — so Claude sends a small description of what it wants
 instead of a wall of imperative Figma API code, and reuses your real
 components instead of rebuilding lookalikes.
@@ -23,24 +22,29 @@ There are two pieces, and you need both:
 
 | Piece | What it is | Where it comes from |
 |---|---|---|
-| **MCP server** | Runs on your machine, connects Claude to Figma | Upstream — [southleft/figma-console-mcp](https://github.com/southleft/figma-console-mcp) |
-| **BetterBridge plugin** | Runs inside Figma Desktop | This repo |
+| **MCP server** | Runs on your machine, connects Claude to Figma | The `figma-console-mcp` npm package (Step 1) |
+| **BetterBridge plugin** | Runs inside Figma Desktop | **This repo** — https://github.com/AnderMagri/BetterBridge |
 
-BetterBridge needs **no server changes**. If you already run the upstream
-Desktop Bridge, you already have the server half — you're only swapping the
-plugin.
+> ⚠️ **Install the plugin from this repo, and nothing else.** The server ships
+> its own bundled plugin with a nearly identical name. If you run that one it
+> will connect happily and then `buildSpec` won't exist — which reads as a bug
+> in BetterBridge when it's really the wrong plugin. Don't install both.
 
 ---
 
 ## Step 1 — Get the MCP server running
 
-Follow the setup instructions in
-[southleft/figma-console-mcp](https://github.com/southleft/figma-console-mcp).
-We deliberately don't duplicate them here, because they're upstream's to
-change.
+Register it with Claude Code:
+
+```bash
+claude mcp add figma-console-mcp -- npx -y figma-console-mcp@latest
+```
 
 You're done with this step when Claude Code can see the Figma tools (a
 `figma_execute` tool, among others).
+
+Already running it? Skip this — BetterBridge needs **no server changes**,
+you're only swapping the plugin.
 
 ## Step 2 — Get this repo
 
@@ -57,9 +61,9 @@ time, so if you move or delete it, the plugin breaks.
 2. Menu → **Plugins → Development → Import plugin from manifest…**
 3. Select `manifest.json` from the folder you just cloned
 
-It appears in your plugin list as **BetterBridge**, separate from the original
-Desktop Bridge. Both can be installed at once, which is the easy way to
-A/B them.
+It appears in your plugin list as **BetterBridge**. If you previously imported
+the server's bundled plugin, remove it — keeping both is the single most
+common way to end up debugging the wrong one.
 
 ## Step 4 — Run it and confirm the connection
 
@@ -157,7 +161,9 @@ current page.
 
 | Symptom | Cause | Fix |
 |---|---|---|
+| `buildSpec is not defined` | You're running the server's bundled plugin, not BetterBridge | Run **BetterBridge** from Plugins → Development. Remove the other one so you can't pick it by mistake. |
 | Stuck on "Looking for your AI app…" | MCP server isn't running, or is on a port outside 9223–9232 | Start the server; confirm its port is in that range |
+| Plugin says **Connected**, Claude says **not connected** | More than one MCP server is running. Two can both hold "port 9223" — one on IPv4, one on IPv6 — without either reporting a conflict, so your plugin attaches to one while Claude talks to the other. | `lsof -nP -i TCP:9223-9232` to see which have connections. Usually caused by two Claude sessions open at once — close one. |
 | "Something broke" | Plugin hit an internal error | Close the plugin window and reopen it |
 | Your `code.js` / `ui.html` edits do nothing | **Figma caches plugin code at the application level** | **Re-import the manifest.** Restarting the plugin is not enough. This one catches everybody. |
 | `unresolved: ["Button/Primary"]` | Component name is wrong or not in your registry | Fix the name — don't let Claude build a lookalike instead |
