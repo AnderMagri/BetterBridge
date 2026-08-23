@@ -81,84 +81,44 @@ A small strip appears. You want:
 If it's stuck on **"Looking for your AI app…"**, the plugin can't find the MCP
 server — see [Troubleshooting](#troubleshooting).
 
-## Step 5 — Prove it actually works
+## Step 5 — Check it works
 
-**Do this in a throwaway file, not production work.** Ask Claude Code to run
-each of these. The full seven-step version is in the
-[README validation checklist](README.md#before-you-install-validate-it);
-this is the two-minute version.
+Open a **scratch Figma file** — not real work — and ask Claude in plain English:
 
-**Create something:**
+> Using BetterBridge, build me a test card in Figma: a grey rounded box with
+> "Hello BetterBridge" inside it.
 
-```js
-return await buildSpec({ build: {
-  type: "frame", name: "Test Card", layout: "col", gap: 16, pad: 16,
-  radius: 8, fill: "#eeeeee", w: 280, h: "hug",
-  children: [{ type: "text", text: "Hello BetterBridge", size: 16 }]
-}});
-```
+A card should appear on your canvas. Then:
 
-A grey rounded card should appear on canvas. The result gives you back its
-node id.
+> Now change that text to "It works" — edit it in place, don't rebuild it.
 
-**Edit what you just made** (use the id from above):
+The text should change without the card being recreated. That's the install verified.
 
-```js
-return await patchSpec([
-  { id: "PASTE_ID_HERE", text: "Edited in place" }
-]);
-```
+**You never type code for any of this.** `buildSpec` and `patchSpec` are what Claude calls under
+the hood — you just describe what you want. If Claude reports `buildSpec is not defined`, it's
+running the wrong plugin; see [Troubleshooting](#troubleshooting).
 
-The text should change without the frame being rebuilt.
+## Step 6 — Point it at a project
 
-**Snapshot your components:**
+**Copy `CLAUDE.md` into your project folder.** That single file is what makes Claude reach for
+BetterBridge automatically instead of hand-writing Figma code out of habit. Without it, you'd have
+to remember to ask every time.
 
-```js
-return await manifestSummary();
-```
+Then, once your Figma file has components worth reusing, ask:
 
-You should get back a compact `{ "Name": { nodeId, key, props } }` object for
-components on the current page.
+> Scan this Figma file and set up the component registry.
 
-If all three work, you're installed.
+Claude builds the registry file for you and loads it at the start of each session. From then on it
+places real instances of your components instead of rebuilding lookalikes.
 
-## Step 6 — Set it up for a real project
+**No components yet?** Nothing to do. It falls back to matching component names on the current
+page, so it works from day one and gets better as your system grows.
 
-Two files make Claude use this automatically instead of only when you
-remember to ask:
+> Using the project template folder? The registry already has a home there
+> (`artefacts/design-system/figma.manifest.json`) and its setup prompt handles this step for you.
 
-1. **Copy `CLAUDE.md` into your project root.** This is the part that changes
-   Claude's default behaviour — without it, Claude will keep hand-writing
-   imperative Figma code out of habit.
-2. **Create `figma.manifest.json` in your project** — the component registry
-   that makes `{ use: "Button/Primary" }` resolve to your real component.
-   Don't hand-write it: run `manifestSummary()` and paste the result into
-   `components`.
-
-   ```json
-   {
-     "components": {
-       "Button/Primary": {
-         "nodeId": "1:234",
-         "key": null,
-         "props": ["label", "State"]
-       }
-     }
-   }
-   ```
-
-   `nodeId` works for local components in the current file; `key` is for
-   library-published components and survives across files. Only add a
-   component once it's stable — otherwise you re-map it every iteration.
-
-Then at the start of a session, have Claude call:
-
-```js
-return globalThis.setManifest({ /* your components */ })
-```
-
-No registry? It still works — it falls back to matching component names on the
-current page.
+*Curious what the registry file actually looks like, or want to write one by hand? Format and
+details are in [Using it on a project](README.md#using-it-on-a-project).*
 
 ---
 
