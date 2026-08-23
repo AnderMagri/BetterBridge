@@ -1,9 +1,8 @@
 # Installing BetterBridge
 
-**We're looking for testers.** BetterBridge works and its logic is covered by
-tests, but it has not yet been exercised against a wide range of real design
-systems. If you install it, please read [What to report back](#what-to-report-back)
-at the bottom — that's the part we actually need from you.
+**We're looking for testers.** BetterBridge works and has been run end to end, but it hasn't been
+tried against a wide range of real design systems yet. That's what you'd be helping with — if
+anything breaks or looks wrong, message me on Slack.
 
 Takes about 10 minutes. You need **Figma Desktop** (browser Figma cannot load
 development plugins) and whatever machine you already run Claude Code on.
@@ -105,38 +104,17 @@ The three that catch almost everyone:
   quit Figma completely (⌘Q on macOS, close every window on Windows) and reopen.
 - **Reconnects every ~30s** → `manifest.json` is missing `"enablePrivatePluginApi": true`.
 
-## What to report back
-
-This is why we're asking you to install it. Ranked by how much it helps:
-
-1. **Anything that broke, with the exact `unresolved` / `failed` output.** That
-   output is designed to be diagnostic — paste it verbatim.
-2. **Components with variant or instance-swap properties.** This is the
-   least-tested path. If your design system uses `State=Hover`-style variants
-   or slots for nested components, tell us whether `props` and `slots`
-   actually applied.
-3. **Mixed-font text layers.** `patchSpec` should surface these as
-   `mixedFont:…` and ask for an explicit `font` rather than crashing. Confirm
-   it does.
-4. **Whether the savings are real for you.** The measured figure below comes
-   from one representative build. Your design system is not that build. If
-   your numbers are worse, that's the most useful thing you can tell us.
-
-Open an issue at
-[github.com/AnderMagri/BetterBridge/issues](https://github.com/AnderMagri/BetterBridge/issues)
-or just message me directly.
-
----
-
 ## Honest status
 
-- **Validated by logic tests, not by live Figma.** `test-builder.js` runs the
-  real builder module against a mocked Figma Plugin API — 31 assertions
-  covering creation, registry resolution, variable binding, editing, deletion,
-  and failure handling. Run it yourself with `node test-builder.js` (no
-  dependencies, no install). What it *cannot* check is real font availability,
-  real auto-layout rendering, or real variable-mode resolution. Only Figma can.
-  That's exactly the gap testers close.
+- **Works end to end.** Verified in Figma: create, edit in place, promote a component, and build
+  from the registry. `test-builder.js` covers the logic separately — 31 assertions against a
+  mocked Figma API, runnable with `node test-builder.js` (no dependencies).
+- **You are among the first to install it from these instructions.** The plugin has been run
+  properly; the written install path has not been walked start to finish by anyone else. If a
+  step is wrong or missing, that's worth knowing.
+- **Least-tested paths, if you want to point it somewhere useful:** components with **variant or
+  instance-swap properties**, and **mixed-font text layers**. Today's testing used primitives and
+  one promoted component in an empty file — your real design system is the interesting case.
 - **Measured savings: ~30% on creating, ~70% on reusing a component** — one 18-node build,
   spec vs. hand-written imperative equivalent, character counts ÷ 4. Single sample, and the same
   person wrote both sides. See [What it actually saves](README.md#what-it-actually-saves) for the
@@ -150,3 +128,8 @@ or just message me directly.
 - **Read-side discipline is separate.** One careless whole-page read can cost
   more tokens than a week of `buildSpec` calls saves. See `extract-compact.js`
   and the read-side rules in `CLAUDE.md`.
+
+---
+
+**Something broken, confusing, or just weird? Send me a message on Slack.** Paste the exact
+`unresolved` / `failed` output if there is any — it's written to be diagnostic.
