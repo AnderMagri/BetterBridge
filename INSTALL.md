@@ -81,44 +81,14 @@ A small strip appears. You want:
 If it's stuck on **"Looking for your AI app…"**, the plugin can't find the MCP
 server — see [Troubleshooting](#troubleshooting).
 
-## Step 5 — Check it works
+## Step 5 — Try it in a scratch file first
 
-Open a **scratch Figma file** — not real work — and ask Claude in plain English:
+Open a **new, empty Figma file** — not real work — and ask Claude for something simple:
 
-> Using BetterBridge, build me a test card in Figma: a grey rounded box with
-> "Hello BetterBridge" inside it.
+> Using BetterBridge, build me a test card in Figma.
 
-A card should appear on your canvas. Then:
-
-> Now change that text to "It works" — edit it in place, don't rebuild it.
-
-The text should change without the card being recreated. That's the install verified.
-
-**You never type code for any of this.** `buildSpec` and `patchSpec` are what Claude calls under
-the hood — you just describe what you want. If Claude reports `buildSpec is not defined`, it's
-running the wrong plugin; see [Troubleshooting](#troubleshooting).
-
-## Step 6 — Point it at a project
-
-**Copy `CLAUDE.md` into your project folder.** That single file is what makes Claude reach for
-BetterBridge automatically instead of hand-writing Figma code out of habit. Without it, you'd have
-to remember to ask every time.
-
-Then, once your Figma file has components worth reusing, ask:
-
-> Scan this Figma file and set up the component registry.
-
-Claude builds the registry file for you and loads it at the start of each session. From then on it
-places real instances of your components instead of rebuilding lookalikes.
-
-**No components yet?** Nothing to do. It falls back to matching component names on the current
-page, so it works from day one and gets better as your system grows.
-
-> Using the project template folder? The registry already has a home there
-> (`artefacts/design-system/figma.manifest.json`) and its setup prompt handles this step for you.
-
-*Curious what the registry file actually looks like, or want to write one by hand? Format and
-details are in [Using it on a project](README.md#using-it-on-a-project).*
+If a card appears on your canvas, you're installed. Keep using a scratch file until you're
+comfortable with it.
 
 ---
 
