@@ -1,0 +1,42 @@
+{
+  "_comment": "Project component registry. Drop this in your per-job folder as figma.manifest.json. Claude loads it and passes it to buildSpec (or calls setManifest once per session). Only add a component ONCE IT'S STABLE — mapping a component you're still redesigning means re-mapping it every iteration.",
+
+  "_howToFill": "nodeId is enough for local/unpublished components in the current file (get them from figma_search_components or figma_get_local_components). key is for components published to a team library and survives across files — prefer key when you have it, and include both when possible.",
+
+  "components": {
+    "Button/Primary": {
+      "nodeId": "1:234",
+      "key": null,
+      "props": ["label", "State", "Size"],
+      "notes": "State=Default|Hover|Disabled"
+    },
+    "Button/Secondary": {
+      "nodeId": "1:245",
+      "key": null,
+      "props": ["label", "State"]
+    },
+    "Input/Text": {
+      "nodeId": "1:301",
+      "key": null,
+      "props": ["label", "placeholder", "State"]
+    },
+    "Card/Product": {
+      "nodeId": "1:410",
+      "key": null,
+      "props": ["title", "price"],
+      "slots": ["media"]
+    },
+    "Badge": {
+      "nodeId": "1:455",
+      "key": null,
+      "props": ["label", "Variant"]
+    }
+  },
+
+  "tokens": {
+    "_comment": "Optional: the token prefixes in play, so Claude uses real names instead of inventing them. buildSpec resolves any variable by its full Figma name.",
+    "color": ["color/surface/", "color/text/", "color/brand/", "color/border/"],
+    "spacing": ["spacing/xs", "spacing/sm", "spacing/md", "spacing/lg", "spacing/xl"],
+    "radius": ["radius/sm", "radius/md", "radius/lg", "radius/full"]
+  }
+}
