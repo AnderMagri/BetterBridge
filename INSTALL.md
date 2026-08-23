@@ -121,7 +121,7 @@ remember to ask:
 1. **Copy `CLAUDE.md` into your project root.** This is the part that changes
    Claude's default behaviour — without it, Claude will keep hand-writing
    imperative Figma code out of habit.
-2. **Copy `manifest.example.json` into your project as `figma.manifest.json`**
+2. **Copy `figma.manifest.example.json` into your project as `figma.manifest.json`**
    and fill in your real components — or just run `manifestSummary()` and
    paste the result into its `components` section.
 

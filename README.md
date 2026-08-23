@@ -161,7 +161,7 @@ If all seven hold up, it's ready to show your team.
 
 ## Setup per project
 
-1. Copy `manifest.example.json` into your project folder as
+1. Copy `figma.manifest.example.json` into your project folder as
    `figma.manifest.json` and fill in real components — or generate the
    `components` section by calling `manifestSummary()` and pasting the result
    in directly.
@@ -219,5 +219,5 @@ that reason.
 - `test-builder.js` — the mock-Figma logic test suite; run with
   `node test-builder.js`
 - `CLAUDE.md` — project rules that make Claude use all of this automatically
-- `manifest.example.json` — starter component registry format
+- `figma.manifest.example.json` — starter component registry format
 - `extract-compact.js` — the read-side token-reduction script from earlier
