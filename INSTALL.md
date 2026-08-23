@@ -163,6 +163,7 @@ current page.
 |---|---|---|
 | `buildSpec is not defined` | You're running the server's bundled plugin, not BetterBridge | Run **BetterBridge** from Plugins → Development. Remove the other one so you can't pick it by mistake. |
 | Stuck on "Looking for your AI app…" | MCP server isn't running, or is on a port outside 9223–9232 | Start the server; confirm its port is in that range |
+| Connection drops and reconnects every ~30s; Claude never sees a file | The plugin's `FILE_INFO` has a null `fileKey`, so the server never identifies it. `figma.fileKey` is a private API. | Confirm `"enablePrivatePluginApi": true` is in `manifest.json`, then re-import. |
 | Plugin says **Connected**, Claude says **not connected** | More than one MCP server is running. Two can both hold "port 9223" — one on IPv4, one on IPv6 — without either reporting a conflict, so your plugin attaches to one while Claude talks to the other. | `lsof -nP -i TCP:9223-9232` to see which have connections. Usually caused by two Claude sessions open at once — close one. |
 | "Something broke" | Plugin hit an internal error | Close the plugin window and reopen it |
 | Your `code.js` / `ui.html` edits do nothing | **Figma caches plugin code at the application level** | **Re-import the manifest.** Restarting the plugin is not enough. This one catches everybody. |

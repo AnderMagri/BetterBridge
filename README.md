@@ -214,7 +214,7 @@ current page.
 |---|---|
 | `code.js` | Added the builder module (`buildSpec`, `patchSpec`, `manifestSummary`, `setManifest`) before `figma.ui.onmessage`; added `BUILD_SPEC` / `PATCH_SPEC` / `MANIFEST_SUMMARY` branches after `EXECUTE_CODE`; version marked `1.39.0-betterbridge.2` |
 | `ui.html` | Added `window.buildSpec` / `patchSpec` / `manifestSummary` and matching `methodMap` entries |
-| `manifest.json` | Renamed to `BetterBridge`, id `betterbridge-mcp`; dropped the unused `permissions: ["teamlibrary"]` and `enablePrivatePluginApi` declarations |
+| `manifest.json` | Renamed to `BetterBridge`, id `betterbridge-mcp`. Nothing else — in particular **`enablePrivatePluginApi: true` must stay**: `figma.fileKey` is a private API, and the bridge server rejects any plugin whose `FILE_INFO` carries a null `fileKey`, leaving it unidentified until it is dropped with `"File identification timeout"`. |
 | `code.js` (upstream paths) | Fixed two `documentAccess: "dynamic-page"` violations inherited from upstream: `DEEP_GET_COMPONENT` now pre-resolves instance main components via `getMainComponentAsync()`, and the `token-misuse` lint rule pre-resolves variable names via `getLocalVariablesAsync()`. Both previously threw into a silent `catch` and dropped their output. |
 
 Everything else is untouched. Re-syncing with upstream means re-applying

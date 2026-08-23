@@ -13,6 +13,10 @@
   "capabilities": [
     "inspect"
   ],
+  "enablePrivatePluginApi": true,
+  "permissions": [
+    "teamlibrary"
+  ],
   "documentAccess": "dynamic-page",
   "networkAccess": {
     "allowedDomains": [
