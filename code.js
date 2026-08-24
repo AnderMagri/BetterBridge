@@ -9,9 +9,16 @@
 // detect stale cached plugins. Bumped by scripts/release.sh ONLY when plugin files
 // change (see issue #62); server-only releases leave it alone, so it may lag
 // package.json — that's intentional, not drift.
-var PLUGIN_VERSION = '1.39.0-betterbridge.2'; // Last release in which plugin files changed.
+// Which upstream plugin generation these files are based on. MUST stay a plain X.Y.Z:
+// the server parses it with a naive split('.') that returns null on anything else, and then
+// falls back to string inequality — so any fork suffix here pins "Plugin update available"
+// permanently on. Bump this only when re-syncing with a newer upstream plugin; that way the
+// banner still works as intended and tells us when upstream's plugin files have moved on.
+var PLUGIN_VERSION = '1.39.0';
+// Our own fork revision, tracked separately so it can't break the check above.
+var BETTERBRIDGE_VERSION = '2';
 
-console.log('🌉 [Desktop Bridge] Plugin loaded (v' + PLUGIN_VERSION + ')');
+console.log('🌉 [Desktop Bridge] Plugin loaded (v' + PLUGIN_VERSION + ' / BetterBridge r' + BETTERBRIDGE_VERSION + ')');
 
 // Show minimal UI - compact status indicator
 figma.showUI(__html__, { width: 240, height: 40, visible: true, themeColors: true });

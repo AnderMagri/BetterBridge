@@ -206,6 +206,13 @@ The most useful number is your own. Measure it on your files.
 | `ui.html` | Added `window.buildSpec` / `patchSpec` / `manifestSummary` and matching `methodMap` entries |
 | `manifest.json` | Renamed to `BetterBridge`, id `betterbridge-mcp`. **Nothing else.** |
 
+> ⚠️ **`PLUGIN_VERSION` in `code.js` must stay a plain `X.Y.Z`.** The server parses it with a
+> naive `split('.')` that returns `null` on anything longer, then falls back to string inequality
+> — so a fork suffix like `1.39.0-betterbridge.2` pins the "Plugin update available" banner
+> permanently on. Our fork revision lives in `BETTERBRIDGE_VERSION` instead. Bump `PLUGIN_VERSION`
+> only when re-syncing with a newer upstream plugin; that keeps the banner meaningful as a signal
+> that upstream's plugin files have moved on.
+
 > ⚠️ **`enablePrivatePluginApi: true` must stay in `manifest.json`.** It looks like dead config.
 > It isn't — `figma.fileKey` is a private API, and without it the plugin sends a null `fileKey`,
 > the server never identifies it, and the connection drops every 30 seconds. This was removed
