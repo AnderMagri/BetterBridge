@@ -16,7 +16,7 @@ return await buildSpec({
     gap: "spacing/md", pad: "spacing/lg", radius: "radius/lg",
     fill: "color/surface/card", w: 320, h: "hug",
     children: [
-      { type: "text", text: "Golf Balls — Dozen", font: "Inter/Semi Bold", size: 16 },
+      { type: "text", text: "Golf Balls — Dozen", textStyle: "Heading/H3" },
       { use: "Button/Primary", props: { label: "Add to cart" } }
     ]
   }
@@ -37,17 +37,41 @@ return await patchSpec([
 ```
 
 Get the `id` from a prior `buildSpec`/`patchSpec` result, or from the current
-selection. Supported fields: `remove`, `name`, `text` (+ optional `font`
-override for mixed-style text nodes), `props` (instances only), `fill`,
-`stroke`, `gap`, `pad`, `radius`, `w`, `h`.
+selection. Supported fields: `remove`, `name`, `text` (+ optional `font`),
+`textStyle`, `props` (instances only), `fill`, `stroke`, `effect`, `gap`,
+`pad`, `radius`, `w`, `h`.
 
 This is the highest-leverage rule in this file — most Figma work here is
 revising something that already exists, not creating from nothing.
 
+## Design system first — tokens and styles, not raw values
+
+1. At the start of a session, call `designSystem()` once. It's small: whether
+   the file is connected to a design system (`source: "library" | "local" |
+   "none"`), library names, counts, and whether strict mode is on.
+2. If `connected` is true, **build with token and style names**: `fill`,
+   `stroke`, `gap`, `pad`, `radius` take token names; `textStyle` and `effect`
+   take style names; `fill`/`stroke` also accept a paint style name. Tokens
+   from enabled libraries work the same as local ones.
+3. Don't guess names. When you need them, call `designSystem({ list: true })`
+   once and keep the result for the session. It can be large on a big system,
+   so don't repeat it.
+4. **Strict mode ("DS only") is on by default** when a design system exists.
+   Raw hex colours and raw non-zero spacing/radius numbers are refused and come
+   back as `strict:` entries; text without a `textStyle` is flagged. Fix these
+   by using the right token or style. **Don't try to turn strict mode off.** If
+   the system genuinely lacks a token for something, report that to the user,
+   who can switch "DS only" off in the plugin window.
+5. With strict mode off, raw values apply but are listed in `offSystem`.
+   Mention them to the user rather than ignoring them.
+
 ## Registry first — never rebuild what exists
 
 1. At the start of a session, if `figma.manifest.json` exists in the project
-   folder, read it and call once: `return globalThis.setManifest({ ...components })`
+   folder, read it and pass the whole file once:
+   `return globalThis.setManifest({ components: {...}, styles: {...} })`.
+   Its `styles` section is how library styles get resolved — the plugin API
+   can't list them on its own.
 2. No manifest yet, or it's gone stale? Call `manifestSummary()` — cheap,
    current-page-only by default — and either write its result to
    `figma.manifest.json` or pass it inline as `buildSpec`'s `manifest` field
@@ -84,16 +108,32 @@ itself.
 - `"Button/Primary"` in `unresolved` → the component name is wrong or not in
   the registry. Fix the name or search for the right one. Do **not** silently
   build a lookalike.
-- `"var:spacing/md"` → that token name doesn't exist. Check real variable
-  names rather than guessing a new one.
+- `"var:spacing/md"` / `"color:…"` → no token (or paint style) with that
+  name in the file or its enabled libraries. Check `designSystem({ list: true })`
+  rather than guessing a new one.
+- `"ambiguous:…"` → two collections or libraries share the name. Prefix the
+  one you mean: `"Semantic:color/primary"`.
+- `"varType:…"` → right name, wrong kind (e.g. a number token used as a fill).
+- `"textStyle:…"` / `"effect:…"` / `"import:…"` → style not found, or a
+  library item couldn't be imported.
+- `"strict:…"` → strict mode refused a raw value. Use a token or style.
+- `"field:…"` → a misspelled field, or one that doesn't apply to that node
+  (`gap` without `layout`, `text` on a frame). Fix the spec.
+- `"size:…"` → `hug` without auto layout, or `fill` without an auto-layout
+  parent.
+- `"slot:…"` → that slot doesn't exist; the real slot names are listed.
+- `"ignored:…"` → an instruction was overridden (e.g. `size` next to a
+  `textStyle`). Not a miss, but don't keep sending it.
 - `"font:…"` → the font isn't available; it fell back to Inter.
-- `"mixedFont:…"` → the text node has mixed styling; pass an explicit `font`
-  in the patch op to set one before changing its content.
+- `"mixedFont:…"` → the text had mixed styling; it was changed, but that
+  styling may be lost. Pass `font` or `textStyle` when that matters.
 - `failed` (patchSpec only) → the whole op errored (usually a bad/stale id).
   `unresolved` is a partial miss inside an otherwise-successful op.
 
 Report unresolved/failed items rather than papering over them — a silent
-lookalike or a silently-dropped edit is worse than a visible gap.
+lookalike or a silently-dropped edit is worse than a visible gap. For builds
+that must be all-or-nothing, pass `atomic: true`: any unresolved entry removes
+the whole build. A build that throws partway is always rolled back.
 
 ## Graduating components
 
@@ -108,13 +148,16 @@ cheapest possible form.
 ```
 { type: "frame|text|rectangle|ellipse", name,
   layout: "row|col", gap, pad, radius,   // token NAME (string) or number
-  fill, stroke,                          // token NAME or "#hex"
+  fill, stroke,                          // token NAME, paint style NAME, or "#hex"
+  effect,                                // effect style NAME
   w, h,                                  // number | "hug" | "fill"
-  align: "center|end|between",           // main axis
-  cross: "center|end|stretch",           // cross axis
-  text, font: "Inter/Semi Bold", size,   // text only
-  children: [ ... ] }
+  align: "start|center|end|between",     // main axis (needs layout)
+  cross: "start|center|end|stretch",     // cross axis (needs layout)
+  text, textStyle,                       // text only; textStyle wins over font/size
+  font: "Inter/Semi Bold", size,         // text only
+  children: [ ... ] }                    // frame only
 ```
+Token names may be scoped: `"Collection:name"` or `"Library:name"`.
 
 **buildSpec** registry instance:
 ```
@@ -125,13 +168,19 @@ cheapest possible form.
 
 **buildSpec** top level:
 ```
-{ at: {x, y}, parentId: "123:45", manifest: {...}, select: false, build: <node> }
+{ at: {x, y}, parentId: "123:45", manifest: {...}, select: false,
+  strict: true, atomic: true, build: <node> }
 ```
 
-**patchSpec** (array of ops):
+**patchSpec** (array of ops, optional `{ strict: true }` second argument):
 ```
-[{ id: "123:45", remove?, name?, text?, font?, props?, fill?, stroke?, gap?, pad?, radius?, w?, h? }]
+[{ id: "123:45", remove?, name?, text?, font?, textStyle?, props?, fill?, stroke?, effect?,
+   gap?, pad?, radius?, w?, h? }]
 ```
+
+**designSystem**`(opts?)` — returns `{ connected, source, libraries, tokens,
+styles, registry, strict }`. `{ list: true }` adds every token and style name;
+`{ refresh: true }` re-reads enabled libraries first.
 
 **manifestSummary**`(opts?)` — `{ allPages: true }` to scan the whole file
 instead of just the current page. Returns

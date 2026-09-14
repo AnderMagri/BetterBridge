@@ -39,7 +39,12 @@ function baseNode(type, opts) {
       })(this);
       return out;
     },
+    effects: [],
+    async setFillStyleIdAsync(id) { this.fillStyleId = id; },
+    async setStrokeStyleIdAsync(id) { this.strokeStyleId = id; if (!this.strokeWeight) this.strokeWeight = 1; },
+    async setEffectStyleIdAsync(id) { this.effectStyleId = id; },
     remove() {
+      this.removed = true;
       if (this.parent) {
         const idx = this.parent.children.indexOf(this);
         if (idx !== -1) this.parent.children.splice(idx, 1);
@@ -64,6 +69,8 @@ function makeText(opts) {
   n.characters = '';
   n.fontSize = 12;
   n.fontName = { family: 'Inter', style: 'Regular' };
+  n.setTextStyleIdAsync = async function (id) { n.textStyleId = id; n.fontName = { family: 'Mock', style: 'Styled' }; };
+  n.getRangeAllFontNames = function () { return n.mockRangeFonts || [n.fontName]; };
   return n;
 }
 
@@ -90,11 +97,22 @@ function makeComponent(opts) {
 }
 
 const mockVariables = [
-  { id: 'v1', name: 'spacing/md', mockValue: 12 },
-  { id: 'v2', name: 'spacing/lg', mockValue: 16 },
-  { id: 'v3', name: 'radius/lg', mockValue: 8 },
-  { id: 'v4', name: 'color/surface/card', mockValue: '#ffffff' },
+  { id: 'v1', name: 'spacing/md', mockValue: 12, resolvedType: 'FLOAT', variableCollectionId: 'c1' },
+  { id: 'v2', name: 'spacing/lg', mockValue: 16, resolvedType: 'FLOAT', variableCollectionId: 'c1' },
+  { id: 'v3', name: 'radius/lg', mockValue: 8, resolvedType: 'FLOAT', variableCollectionId: 'c1' },
+  { id: 'v4', name: 'color/surface/card', mockValue: '#ffffff', resolvedType: 'COLOR', variableCollectionId: 'c2' },
 ];
+const mockCollections = [{ id: 'c1', name: 'Spacing' }, { id: 'c2', name: 'Semantic' }];
+
+// Library side: what figma.teamLibrary reports for enabled libraries.
+const mockLibrary = { collections: [], variables: {} };
+const importedKeys = [];
+
+// Local styles (mutable per test).
+const mockStyles = { PAINT: [], TEXT: [], EFFECT: [] };
+const libraryStyles = {}; // key -> style, for importStyleByKeyAsync
+const libraryComponentSets = {}; // key -> component set
+const mockFontFailures = { all: false };
 
 const currentPage = baseNode('PAGE', { name: 'Page 1' });
 currentPage.selection = [];
@@ -109,11 +127,25 @@ const figmaMock = {
   root: rootDoc,
   mixed: Symbol('figma.mixed'),
   getNodeByIdAsync: async (id) => nodeIndex.get(id) || null,
-  loadFontAsync: async () => {},
+  loadFontAsync: async () => { if (mockFontFailures.all) throw new Error('font unavailable'); },
   loadAllPagesAsync: async () => {},
   importComponentByKeyAsync: async () => { throw new Error('no library in mock'); },
+  importComponentSetByKeyAsync: async (key) => { if (libraryComponentSets[key]) return libraryComponentSets[key]; throw new Error('no set'); },
+  importStyleByKeyAsync: async (key) => { if (libraryStyles[key]) return libraryStyles[key]; throw new Error('style key not found'); },
+  getLocalPaintStylesAsync: async () => mockStyles.PAINT,
+  getLocalTextStylesAsync: async () => mockStyles.TEXT,
+  getLocalEffectStylesAsync: async () => mockStyles.EFFECT,
+  teamLibrary: {
+    getAvailableLibraryVariableCollectionsAsync: async () => mockLibrary.collections,
+    getVariablesInLibraryCollectionAsync: async (key) => mockLibrary.variables[key] || []
+  },
   variables: {
     getLocalVariablesAsync: async () => mockVariables,
+    getLocalVariableCollectionsAsync: async () => mockCollections,
+    importVariableByKeyAsync: async (key) => {
+      importedKeys.push(key);
+      return { id: 'imported:' + key, name: key, mockValue: 'lib' };
+    },
     setBoundVariableForPaint: (paint, field, variable) => {
       paint.boundVariable = variable.id;
       return paint;
@@ -133,7 +165,11 @@ function hexToFigmaRGB(hex) {
 const sandbox = { figma: figmaMock, hexToFigmaRGB, console };
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync('./_builder-module.js', 'utf8'), sandbox, { filename: '_builder-module.js' });
-const { buildSpec, patchSpec, manifestSummary } = sandbox;
+const { buildSpec, patchSpec, manifestSummary, designSystem, setManifest } = sandbox;
+// Legacy sections 1-12 predate strict mode; they run with it off, and the
+// strict sections below switch it back on.
+sandbox.__bbSetStrict(false);
+const has = (r, prefix) => !!(r.unresolved && r.unresolved.some(u => u.indexOf(prefix) === 0));
 
 let pass = 0, fail = 0;
 function ok(cond, label) {
@@ -272,6 +308,217 @@ function ok(cond, label) {
     const r = await patchSpec([{ id: inst3.id, props: { totallyMadeUp: 'y' } }]);
     ok(r.patched === 1, 'op still counts as patched (partial failure, not total)');
     ok(r.unresolved && r.unresolved.some(u => u.indexOf('props:') === 0), 'bad prop key surfaced in unresolved, not swallowed');
+  }
+
+  // ==========================================================================
+  // r3: nothing silent
+  // ==========================================================================
+  console.log('--- 13: misspelled / misplaced fields are reported ---');
+  {
+    const r = await buildSpec({ build: { type: 'frame', name: 'Typo', padding: 16, children: [{ type: 'text', text: 'Hi', layout: 'row' }] } });
+    ok(has(r, 'field:padding'), 'unknown field "padding" reported');
+    ok(has(r, 'field:layout ignored on text'), 'layout on a text node reported');
+    const r2 = await buildSpec({ build: { type: 'frame', name: 'NoLayout', gap: 8, align: 'center' } });
+    ok(has(r2, 'field:gap') && has(r2, 'field:align'), 'gap/align without layout reported, not silently skipped');
+    const r3 = await buildSpec({ build: { type: 'frame', name: 'BadAlign', layout: 'row', align: 'middle' } });
+    ok(has(r3, 'align:middle'), 'invalid align value reported');
+    let msg = '';
+    try { await buildSpec({ build: { type: 'button', name: 'Nope' } }); } catch (e) { msg = e.message; }
+    ok(msg.indexOf('nodeType:button') !== -1, 'unknown node type is not silently built as a frame');
+  }
+
+  console.log('--- 14: sizing that Figma would reject is reported ---');
+  {
+    const r = await buildSpec({ build: { type: 'frame', name: 'HugNoLayout', w: 'hug' } });
+    ok(has(r, 'size:w=hug'), 'hug on a frame without layout reported');
+    const r2 = await buildSpec({ build: { type: 'frame', name: 'Outer', children: [{ type: 'frame', name: 'Inner', w: 'fill' }] } });
+    ok(has(r2, 'size:w=fill'), 'fill inside a non-auto-layout parent reported');
+    const r3 = await buildSpec({ build: { type: 'frame', name: 'Row', layout: 'row', children: [{ type: 'frame', name: 'Cell', w: 'fill' }] } });
+    const cell = nodeIndex.get(r3.id).children[0];
+    ok(!r3.unresolved && cell.layoutSizingHorizontal === 'FILL', 'fill inside an auto-layout parent applies cleanly');
+    const r4 = await buildSpec({ build: { type: 'frame', name: 'Wide', w: 'wide' } });
+    ok(has(r4, 'size:w="wide"'), 'nonsense sizing value reported');
+  }
+
+  console.log('--- 15: slots — no silent fallback into the first slot ---');
+  {
+    const card = makeComponent({ name: 'Card/Slotted' });
+    const slotA = baseNode('SLOT', { name: 'header' });
+    slotA.layoutMode = 'VERTICAL';
+    const origCreate = card.createInstance;
+    card.createInstance = function () {
+      const inst = origCreate();
+      const s = baseNode('SLOT', { name: 'header' });
+      s.layoutMode = 'VERTICAL';
+      inst.appendChild(s);
+      return inst;
+    };
+    currentPage.appendChild(card);
+    const r = await buildSpec({ build: { use: 'Card/Slotted', slots: { media: [{ type: 'text', text: 'x' }] } } });
+    const inst = nodeIndex.get(r.id);
+    ok(has(r, 'slot:media') && r.unresolved.join().indexOf('slots: header') !== -1, 'missing slot reported with the real slot names');
+    ok(inst.children[0].children.length === 0, 'content was NOT dropped into the first slot');
+    const r2 = await buildSpec({ build: { use: 'Card/Slotted', slots: { header: [{ type: 'frame', name: 'Hero', w: 'fill' }] } } });
+    const inst2 = nodeIndex.get(r2.id);
+    ok(inst2.children[0].children.length === 1 && !r2.unresolved, 'named slot filled; "fill" sees the slot as its parent');
+  }
+
+  console.log('--- 16: a build that throws is rolled back ---');
+  {
+    mockFontFailures.all = true;
+    let msg = '';
+    const before = idCounter;
+    try { await buildSpec({ build: { type: 'frame', name: 'WillFail', layout: 'col', children: [{ type: 'text', text: 'boom' }] } }); }
+    catch (e) { msg = e.message; }
+    mockFontFailures.all = false;
+    const root = nodeIndex.get('mock:' + (before + 1));
+    ok(msg.indexOf('rolled back') !== -1, 'error says the build was rolled back');
+    ok(root && root.name === 'WillFail' && root.removed === true, 'the half-built root was removed');
+  }
+
+  console.log('--- 17: atomic builds are all-or-nothing ---');
+  {
+    const r = await buildSpec({ atomic: true, build: { type: 'frame', name: 'Atomic', layout: 'row', gap: 'spacing/nope' } });
+    ok(r.removed === true && !r.id && has(r, 'var:spacing/nope'), 'unresolved entry removes the whole build and says why');
+  }
+
+  console.log('--- 18: patchSpec reports fields that do not apply ---');
+  {
+    const frame = baseNode('FRAME', { name: 'PlainFrame' });
+    currentPage.appendChild(frame);
+    const r = await patchSpec([{ id: frame.id, text: 'nope', props: { State: 'Hover' }, gap: 8, colour: '#fff' }]);
+    ok(has(r, 'field:text/font/textStyle'), 'text on a frame reported');
+    ok(has(r, 'field:props'), 'props on a non-instance reported');
+    ok(has(r, 'field:gap'), 'gap on a frame without auto layout reported');
+    ok(has(r, 'field:colour'), 'unknown patch field reported');
+  }
+
+  console.log('--- 19: patchSpec edits mixed-font text instead of failing ---');
+  {
+    const txt = makeText({ name: 'Mixed' });
+    txt.characters = 'Bold and regular';
+    txt.fontName = figmaMock.mixed;
+    txt.mockRangeFonts = [{ family: 'Inter', style: 'Bold' }, { family: 'Inter', style: 'Regular' }];
+    currentPage.appendChild(txt);
+    const r = await patchSpec([{ id: txt.id, text: 'Changed' }]);
+    ok(txt.characters === 'Changed' && r.patched === 1, 'mixed-font text edited');
+    ok(has(r, 'mixedFont:'), 'possible loss of mixed styling is reported');
+  }
+
+  // ==========================================================================
+  // r3: design system — library tokens, styles, strict mode
+  // ==========================================================================
+  console.log('--- 20: library tokens resolve and import by key ---');
+  {
+    mockLibrary.collections = [{ key: 'lc1', name: 'Brand', libraryName: 'Acme DS' }];
+    mockLibrary.variables = { lc1: [
+      { key: 'lk-primary', name: 'color/brand/primary', resolvedType: 'COLOR' },
+      { key: 'lk-space', name: 'spacing/xl', resolvedType: 'FLOAT' },
+      { key: 'lk-card', name: 'color/surface/card', resolvedType: 'COLOR' }
+    ] };
+    await designSystem({ refresh: true });
+    const r = await buildSpec({ build: { type: 'frame', name: 'LibTok', layout: 'row', gap: 'spacing/xl', fill: 'color/brand/primary' } });
+    const node = nodeIndex.get(r.id);
+    ok(!r.unresolved, 'library token names resolve');
+    ok(node.boundVariables.itemSpacing === 'imported:lk-space', 'gap bound to the imported library variable');
+    ok(node.fills[0].boundVariable === 'imported:lk-primary', 'fill bound to the imported library variable');
+  }
+
+  console.log('--- 21: local beats library; wrong type and ambiguity are reported ---');
+  {
+    const r = await buildSpec({ build: { type: 'frame', name: 'LocalWins', fill: 'color/surface/card' } });
+    ok(nodeIndex.get(r.id).fills[0].boundVariable === 'v4', 'local variable wins over a same-named library one');
+    const r2 = await buildSpec({ build: { type: 'frame', name: 'WrongType', fill: 'spacing/md' } });
+    ok(has(r2, 'varType:spacing/md is FLOAT'), 'number token used as a colour reported as a type mismatch');
+    mockLibrary.collections.push({ key: 'lc2', name: 'Legacy', libraryName: 'Old DS' });
+    mockLibrary.variables.lc2 = [{ key: 'lk-old-primary', name: 'color/brand/primary', resolvedType: 'COLOR' }];
+    await designSystem({ refresh: true });
+    const r3 = await buildSpec({ build: { type: 'frame', name: 'Ambiguous', fill: 'color/brand/primary' } });
+    ok(has(r3, 'ambiguous:color/brand/primary'), 'same name in two libraries is reported, not guessed');
+    const r4 = await buildSpec({ build: { type: 'frame', name: 'Scoped', fill: 'Legacy:color/brand/primary' } });
+    ok(!r4.unresolved && nodeIndex.get(r4.id).fills[0].boundVariable === 'imported:lk-old-primary', 'collection prefix picks one');
+  }
+
+  console.log('--- 22: styles — paint, text, effect, and library styles by key ---');
+  {
+    mockStyles.PAINT.push({ id: 'S:paint1', name: 'Brand/Accent', type: 'PAINT', key: 'pk1' });
+    mockStyles.TEXT.push({ id: 'S:text1', name: 'Heading/H1', type: 'TEXT', key: 'tk1', fontName: { family: 'Mock', style: 'Styled' } });
+    mockStyles.EFFECT.push({ id: 'S:fx1', name: 'Shadow/Card', type: 'EFFECT', key: 'ek1' });
+    const r = await buildSpec({ build: {
+      type: 'frame', name: 'Styled', layout: 'col', fill: 'Brand/Accent', effect: 'Shadow/Card',
+      children: [{ type: 'text', text: 'Title', textStyle: 'Heading/H1', size: 40 }]
+    } });
+    const node = nodeIndex.get(r.id);
+    ok(node.fillStyleId === 'S:paint1', 'fill name falls back to a paint style');
+    ok(node.effectStyleId === 'S:fx1', 'effect style applied');
+    ok(node.children[0].textStyleId === 'S:text1', 'text style applied');
+    ok(node.children[0].fontSize !== 40 && has(r, 'ignored:font/size'), 'raw size ignored when a textStyle is set, and said so');
+
+    libraryStyles['remote-h2'] = { id: 'S:remote-h2', name: 'Heading/H2', type: 'TEXT', key: 'remote-h2', fontName: { family: 'Mock', style: 'Styled' } };
+    setManifest({ components: {}, styles: { 'Heading/H2': { type: 'TEXT', key: 'remote-h2' } } });
+    const r2 = await buildSpec({ build: { type: 'text', text: 'Sub', textStyle: 'Heading/H2' } });
+    ok(nodeIndex.get(r2.id).textStyleId === 'S:remote-h2' && !r2.unresolved, 'library text style imported by key from the manifest');
+    const r3 = await buildSpec({ build: { type: 'text', text: 'x', textStyle: 'Heading/Nope' } });
+    ok(has(r3, 'textStyle:Heading/Nope'), 'unknown text style reported');
+    setManifest({});
+  }
+
+  console.log('--- 23: strict mode refuses raw values when a design system exists ---');
+  {
+    sandbox.__bbSetStrict(true);
+    const r = await buildSpec({ build: {
+      type: 'frame', name: 'Strict', layout: 'row', gap: 12, pad: 0, fill: '#ff0000', radius: 'radius/lg',
+      children: [{ type: 'text', text: 'Unstyled' }]
+    } });
+    const node = nodeIndex.get(r.id);
+    ok(has(r, 'strict:gap 12') && node.itemSpacing === 0, 'raw gap refused');
+    ok(has(r, 'strict:fill #ff0000') && node.fills.length === 0, 'raw hex refused');
+    ok(!has(r, 'strict:pad'), 'zero is allowed');
+    ok(node.boundVariables.cornerRadius === 'v3', 'tokens still apply');
+    ok(has(r, 'strict:text "Unstyled" has no textStyle'), 'text without a text style flagged');
+
+    const r2 = await buildSpec({ strict: false, build: { type: 'frame', name: 'TryOff', layout: 'row', gap: 12 } });
+    ok(has(r2, 'ignored:strict:false') && has(r2, 'strict:gap'), 'a spec cannot switch strict mode off');
+
+    const inst = baseNode('FRAME', { name: 'PatchStrict' });
+    currentPage.appendChild(inst);
+    const r3 = await patchSpec([{ id: inst.id, fill: '#00ff00' }]);
+    ok(has(r3, 'strict:fill') && inst.fills.length === 0, 'patchSpec honours strict mode too');
+
+    sandbox.__bbSetStrict(false);
+    const r4 = await buildSpec({ build: { type: 'frame', name: 'Loose', layout: 'row', gap: 12, fill: '#ff0000' } });
+    ok(!r4.unresolved && r4.offSystem && r4.offSystem.indexOf('gap:12') !== -1 && r4.offSystem.indexOf('fill:#ff0000') !== -1,
+      'strict off: raw values apply but are listed in offSystem');
+  }
+
+  console.log('--- 24: designSystem() status ---');
+  {
+    const ds = await designSystem();
+    ok(ds.connected === true && ds.source === 'library', 'connected to a library design system');
+    ok(ds.libraries.indexOf('Acme DS') !== -1 && ds.tokens.library === 4 && ds.tokens.local === 4, 'library names and token counts');
+    ok(ds.styles.text === 1 && ds.styles.paint === 1 && ds.styles.effect === 1, 'style counts');
+    ok(ds.list === undefined, 'names are not listed unless asked (keeps it small)');
+    const full = await designSystem({ list: true });
+    ok(full.list.tokens['Brand (Acme DS)'].indexOf('color/brand/primary') !== -1, 'list groups tokens by collection and library');
+    ok(full.list.styles['Heading/H1'].type === 'TEXT', 'list includes styles with their type');
+  }
+
+  console.log('--- 25: a component-set key imports the set ---');
+  {
+    const set = baseNode('COMPONENT_SET', { name: 'Chip' });
+    const def = makeComponent({ name: 'State=Default' });
+    set.appendChild(def);
+    set.defaultVariant = def;
+    libraryComponentSets['set-key'] = set;
+    const r = await buildSpec({ manifest: { 'Chip': { key: 'set-key' } }, build: { use: 'Chip' } });
+    ok(nodeIndex.get(r.id).type === 'INSTANCE' && r.reused === 1, 'set key resolves to its default variant');
+  }
+
+  console.log('--- 26: code.js ships the same module the tests run ---');
+  {
+    const code = fs.readFileSync('./code.js', 'utf8');
+    const mod = fs.readFileSync('./_builder-module.js', 'utf8');
+    ok(code.indexOf(mod.trim()) !== -1, 'code.js contains _builder-module.js verbatim');
   }
 
   console.log('\n' + pass + ' passed, ' + fail + ' failed');

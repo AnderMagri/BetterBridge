@@ -422,6 +422,84 @@
     .log-entry.error  { color: var(--log-error); }
     .log-entry.warn   { color: var(--log-warn); }
 
+    /* ===== BetterBridge: design-system line ===== */
+    /* Always visible: which design system builds will use, and whether raw
+       values are allowed. Square mark so it never reads as the round
+       connection dot above it. */
+    .ds-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-left: 4px; /* match row-top alignment */
+    }
+
+    .ds-label {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: transparent;
+      border: none;
+      padding: 2px 0;
+      font-family: inherit;
+      font-size: 10px;
+      color: var(--figma-color-text-secondary, rgba(255, 255, 255, 0.6));
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .ds-label:hover {
+      color: var(--figma-color-text, rgba(255, 255, 255, 0.9));
+    }
+
+    .ds-mark {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      flex-shrink: 0;
+      border: 1px solid var(--color-idle);
+    }
+
+    .ds-mark.library {
+      background: var(--figma-color-bg-brand, #0d99ff);
+      border-color: var(--figma-color-bg-brand, #0d99ff);
+    }
+
+    .ds-mark.local {
+      border-color: var(--figma-color-bg-brand, #0d99ff);
+    }
+
+    .ds-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+    }
+
+    .ds-strict {
+      flex-shrink: 0;
+      color: var(--figma-color-text-secondary, rgba(255, 255, 255, 0.6));
+    }
+
+    .ds-strict[aria-pressed="true"] {
+      color: var(--figma-color-bg-brand, #0d99ff);
+      border-color: var(--figma-color-bg-brand, #0d99ff);
+    }
+
+    .ds-detail {
+      padding-left: 17px; /* aligns with the label text */
+      font-size: 9px;
+      color: var(--figma-color-text-secondary, rgba(255, 255, 255, 0.5));
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ds-detail:empty {
+      display: none;
+    }
+
     /* ===== Light theme ===== */
     /* Theme manual override redefines the Figma-injected vars so all token
        consumers cascade automatically. When no data-theme attribute is set,
@@ -486,6 +564,16 @@
 
     <!-- Visible recovery instruction, shown only in the error state -->
     <div class="status-error-hint" id="status-error-hint">Close this window and reopen the plugin.</div>
+
+    <!-- BetterBridge: design-system status (click the label to re-check) -->
+    <div class="ds-row" id="ds-row">
+      <button class="ds-label" id="ds-label" onclick="refreshDesignSystem()" title="Checking design system…">
+        <span class="ds-mark" id="ds-mark" aria-hidden="true"></span>
+        <span class="ds-text" id="ds-text" role="status" aria-live="polite">Checking design system…</span>
+      </button>
+      <button class="cta-btn ds-strict" id="ds-strict" onclick="toggleStrict()" aria-pressed="true" style="display:none">DS only</button>
+    </div>
+    <div class="ds-detail" id="ds-detail"></div>
 
     <!-- Plugin update banner (shown when the server reports a newer plugin) -->
     <div class="row update-banner" id="update-banner">
@@ -687,6 +775,9 @@
     };
     window.manifestSummary = function(params) {
       return window.sendPluginCommand('MANIFEST_SUMMARY', { options: params }, 30000);
+    };
+    window.designSystem = function(params) {
+      return window.sendPluginCommand('DESIGN_SYSTEM', { options: params }, 30000);
     };
 
     window.updateVariable = (variableId, modeId, value) => {
@@ -1070,6 +1161,7 @@
         'BUILD_SPEC': function(params) { return window.buildSpec(params); },
         'PATCH_SPEC': function(params) { return window.patchSpec(params); },
         'MANIFEST_SUMMARY': function(params) { return window.manifestSummary(params); },
+        'DESIGN_SYSTEM': function(params) { return window.designSystem(params); },
         'UPDATE_VARIABLE': function(params) { return window.updateVariable(params.variableId, params.modeId, params.value); },
         'CREATE_VARIABLE': function(params) { return window.createVariable(params.name, params.collectionId, params.resolvedType, params); },
         'DELETE_VARIABLE': function(params) { return window.deleteVariable(params.variableId); },
@@ -2426,6 +2518,77 @@
     }
 
     // ============================================================================
+    // BETTERBRIDGE: design-system status line
+    // ============================================================================
+    var _dsStrict = true;
+
+    function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
+
+    function renderDesignSystem(ds) {
+      var mark = document.getElementById('ds-mark');
+      var text = document.getElementById('ds-text');
+      var label = document.getElementById('ds-label');
+      var detail = document.getElementById('ds-detail');
+      var strictBtn = document.getElementById('ds-strict');
+      if (!mark || !text || !label || !detail || !strictBtn) return;
+
+      _dsStrict = ds.strict !== false;
+      var tokens = ds.tokens ? (ds.tokens.local || 0) + (ds.tokens.library || 0) : 0;
+      var st = ds.styles || {};
+      var styles = (st.paint || 0) + (st.text || 0) + (st.effect || 0);
+      var libs = ds.libraries || [];
+      var parts = [];
+      if (tokens) parts.push(plural(tokens, 'token'));
+      if (styles) parts.push(plural(styles, 'style'));
+      if (ds.registry) parts.push(plural(ds.registry, 'component'));
+
+      var line, tip;
+      if (ds.source === 'library') {
+        line = 'DS: ' + libs[0] + (libs.length > 1 ? ' +' + (libs.length - 1) : '');
+        tip = 'Connected to ' + libs.join(', ') + '.';
+        mark.className = 'ds-mark library';
+      } else if (ds.source === 'local') {
+        line = 'DS: this file';
+        tip = "Using this file's own tokens and styles. No enabled library publishes tokens.";
+        mark.className = 'ds-mark local';
+      } else {
+        line = 'No design system found';
+        tip = 'No tokens or styles in this file or its enabled libraries. Builds will use raw values. ' +
+              'Libraries that publish only styles or components can\u2019t be detected. List them in figma.manifest.json.';
+        mark.className = 'ds-mark';
+      }
+      if (ds.libraryError || ds.error) {
+        parts = ["Couldn't read libraries: " + (ds.libraryError || ds.error)];
+      }
+
+      text.textContent = line;
+      label.title = tip + ' Click to re-check.';
+      detail.textContent = parts.join(' · ');
+      detail.title = detail.textContent;
+
+      // Strict only means something when there is a design system to enforce.
+      strictBtn.style.display = ds.connected ? '' : 'none';
+      strictBtn.setAttribute('aria-pressed', _dsStrict ? 'true' : 'false');
+      strictBtn.textContent = _dsStrict ? '\u2713 DS only' : 'DS only';
+      strictBtn.title = _dsStrict
+        ? 'On: builds refuse raw hex colors and spacing numbers and ask for tokens and styles instead. Click to allow raw values.'
+        : 'Off: raw values are allowed but reported. Click to require tokens and styles.';
+    }
+
+    function refreshDesignSystem() {
+      var text = document.getElementById('ds-text');
+      if (text) text.textContent = 'Checking design system…';
+      parent.postMessage({ pluginMessage: { type: 'BB_DS_REFRESH', refresh: true } }, '*');
+    }
+
+    function toggleStrict() {
+      parent.postMessage({ pluginMessage: { type: 'BB_SET_STRICT', value: !_dsStrict } }, '*');
+    }
+
+    // Ask once on load, including after RELOAD_UI rebuilds this iframe.
+    parent.postMessage({ pluginMessage: { type: 'BB_DS_REFRESH', refresh: false } }, '*');
+
+    // ============================================================================
     // MESSAGE HANDLER - Process responses from plugin worker
     // ============================================================================
     window.onmessage = (event) => {
@@ -2497,6 +2660,24 @@
         // Variable operations
         case 'EXECUTE_CODE_RESULT':
           handleResult('EXECUTE_CODE', 'result');
+          break;
+
+        // BetterBridge commands. Without these cases the results never
+        // reached the waiting request and every call timed out.
+        case 'BUILD_SPEC_RESULT':
+          handleResult('BUILD_SPEC', 'result');
+          break;
+        case 'PATCH_SPEC_RESULT':
+          handleResult('PATCH_SPEC', 'result');
+          break;
+        case 'MANIFEST_SUMMARY_RESULT':
+          handleResult('MANIFEST_SUMMARY', 'result');
+          break;
+        case 'DESIGN_SYSTEM_RESULT':
+          handleResult('DESIGN_SYSTEM', 'result');
+          break;
+        case 'BB_DS_STATUS':
+          renderDesignSystem(msg.data || {});
           break;
         case 'UPDATE_VARIABLE_RESULT':
           handleResult('UPDATE_VARIABLE', 'variable');

@@ -45,13 +45,14 @@ buildSpec({ build: {
 That `{ use: "Button/Primary" }` places a **real instance** of your component — linked to the
 main component, not a copy.
 
-### Three functions
+### Four functions
 
 | Function | What it's for |
 |---|---|
 | `buildSpec()` | Create something new |
 | `patchSpec()` | Change something that already exists, in place |
 | `manifestSummary()` | List the components in your file, to build a registry |
+| `designSystem()` | Check which design system this file is connected to |
 
 **`patchSpec` is the one that matters most day to day** — most real work is revising, not creating:
 
@@ -69,8 +70,55 @@ Nothing is ever silently faked. A component name it can't find, a token that doe
 stale node id — all come back in `unresolved` or `failed` so you can fix the real problem
 instead of shipping a lookalike nobody notices.
 
-You can also use **token names instead of hex values** — `fill: "color/brand/primary"`,
-`gap: "spacing/md"` — and it binds the real Figma variable. Raw hex and numbers still work.
+That includes smaller things that used to disappear quietly: a misspelled field (`padding`
+instead of `pad`), `w: "fill"` inside a frame without auto layout, content aimed at a slot that
+doesn't exist. And if a build crashes halfway, the half-built frame is removed instead of left
+on your canvas. Pass `atomic: true` to remove a build that has *any* unresolved entry.
+
+---
+
+## Using your design system
+
+Use **token and style names instead of raw values** and BetterBridge binds the real thing:
+
+```js
+buildSpec({ build: {
+  type: "frame", layout: "col", gap: "spacing/md", fill: "color/surface/card", effect: "Shadow/Card",
+  children: [{ type: "text", text: "Golf Balls — Dozen", textStyle: "Heading/H3" }]
+}})
+```
+
+- **Tokens** (`fill`, `stroke`, `gap`, `pad`, `radius`) come from this file's variables **or any
+  library enabled for the file**. Library tokens are imported automatically.
+- **Styles:** `textStyle` and `effect` take style names. `fill`/`stroke` fall back to a paint
+  style when no colour token has that name.
+- **Same name twice?** It's reported as `ambiguous:` instead of guessed. Prefix the collection or
+  library: `"Semantic:color/primary"`. A variable in this file beats a library one with the same name.
+
+### The design-system line
+
+The plugin window shows what it found, under the connection status:
+
+- **■ DS: Acme Design System** — tokens from an enabled library
+- **□ DS: this file** — this file's own tokens and styles
+- **No design system found** — builds use raw values
+
+Below it are the counts (tokens · styles · registry components). Click the line to re-check,
+for example after enabling a library.
+
+> The plugin API can't see libraries that publish **only styles or components** (no tokens).
+> List those in `figma.manifest.json` — see [Using it on a project](#using-it-on-a-project).
+
+### "DS only" (strict mode)
+
+When a design system is found, the **DS only** toggle appears, and it's **on by default**. While
+it's on, raw hex colours and raw spacing/radius numbers are **refused, not applied**, and come
+back as `strict:` entries so Claude swaps in a token. Text without a `textStyle` is flagged too.
+`0` is always allowed.
+
+Turn it off in the plugin window when you need raw values (say your system has no radius tokens).
+Raw values then apply but are listed in `offSystem`, so you can still see what's off-system.
+A spec can switch strict mode **on** (`strict: true`) but never off. Only the toggle can do that.
 
 ---
 
@@ -97,6 +145,22 @@ Also copy **[CLAUDE.md](CLAUDE.md)** into your project root. That's what makes C
 these functions automatically instead of writing imperative code out of habit.
 
 **No registry?** It still works — it falls back to matching component names on the current page.
+
+**Library styles** need a `styles` section, because the plugin API can't list them. Open the
+library file itself, run `designSystem({ list: true })`, and copy the style entries you want:
+
+```json
+{
+  "components": { "...": "..." },
+  "styles": {
+    "Heading/H1": { "type": "TEXT", "key": "4f1c…" },
+    "Shadow/Card": { "type": "EFFECT", "key": "9ab2…" }
+  }
+}
+```
+
+Pass the whole file to `setManifest` — it accepts `{ components, styles }` or, as before, a bare
+components map.
 
 > Two things worth knowing: `nodeId` only works in the file it came from, while `key` works
 > anywhere — prefer `key` when you have it. And `buildSpec` creates **frames**, not components,
@@ -146,12 +210,19 @@ dumping their internals.
 | Stuck on "Looking for your AI app…" | MCP server isn't running, or is on a port outside 9223–9232 | Start the server; confirm its port is in that range |
 | "Something broke" in the plugin | Internal error | Close the plugin window and reopen it |
 | `unresolved: ["Button/Primary"]` | Component name is wrong, or not in your registry | Fix the name — don't let Claude build a lookalike instead |
-| `unresolved: ["var:spacing/md"]` | That variable doesn't exist in the file | Check your real variable names |
+| `unresolved: ["var:spacing/md"]` | No variable with that name in the file or its enabled libraries | Check real names with `designSystem({ list: true })` |
+| `unresolved: ["ambiguous:…"]` | Two collections or libraries share that token name | Prefix one: `"Semantic:color/primary"` |
+| `unresolved: ["varType:…"]` | Right name, wrong kind (a number token used as a colour) | Use a token of the right type |
+| `unresolved: ["strict:…"]` | "DS only" is on and a raw value was refused | Use a token or style — or switch "DS only" off in the plugin window |
+| `unresolved: ["field:…"]` | A field is misspelled, or doesn't apply to that node | Fix the field name, or add the layout it needs |
+| `unresolved: ["size:…"]` | `hug` without auto layout, or `fill` without an auto-layout parent | Add `layout`, or use a number |
+| `unresolved: ["slot:…"]` | That slot name doesn't exist (the real ones are listed) | Use one of the listed names |
 | `unresolved: ["font:…"]` | Font isn't available; it fell back to Inter | Install the font, or use one you have |
-| `unresolved: ["mixedFont:…"]` | Text layer has mixed styling | Pass an explicit `font` in the patch to set one first |
+| `unresolved: ["mixedFont:…"]` | Text had mixed styling; it was changed, but that styling may be lost | Pass `font` or `textStyle` to choose one on purpose |
+| Design-system line says **No design system found** but a library is enabled | The library publishes only styles/components, or it was enabled after the check | Click the line to re-check; list style-only libraries in the manifest |
 | `failed` on a `patchSpec` op | Usually a stale or wrong node id | Re-read the current ids |
 
-**Verify the plugin itself:** `node test-builder.js` — no dependencies, runs in a second, 31 assertions.
+**Verify the plugin itself:** `node test-builder.js` — no dependencies, runs in a second, 81 assertions.
 
 ---
 
@@ -186,10 +257,13 @@ The most useful number is your own. Measure it on your files.
 - **Works end to end.** Verified in Figma: create, edit in place, promote a component, and build
   from the registry (`reused: 3, built: 1`).
 - **Logic is covered by tests.** `test-builder.js` runs the real builder module against a mocked
-  Figma API — 31 assertions across create, registry resolution, variable binding, edit, delete,
-  and failure handling.
+  Figma API — 81 assertions across create, registry resolution, variable binding, library tokens,
+  styles, strict mode, edit, delete, and failure handling. It also checks that `code.js` ships
+  the exact module the tests ran.
 - **Not yet proven across real design systems.** The least-tested paths are **variant and
-  instance-swap properties** and **mixed-font text layers**. If you use those, that's the most
+  instance-swap properties**, **mixed-font text layers**, and **everything new in r3** —
+  library tokens, styles, strict mode, and the design-system line are tested against a mock
+  only and have not yet been run in real Figma. If you use those, that's the most
   valuable thing you can report back.
 - **This is a fork you now maintain.** Upstream updates mean re-applying the changes below by hand.
 
@@ -201,9 +275,9 @@ The most useful number is your own. Measure it on your files.
 
 | File | Change |
 |---|---|
-| `code.js` | Added the builder module (`buildSpec`, `patchSpec`, `manifestSummary`, `setManifest`) before `figma.ui.onmessage`; added `BUILD_SPEC` / `PATCH_SPEC` / `MANIFEST_SUMMARY` branches after `EXECUTE_CODE` |
+| `code.js` | Added the builder module (`buildSpec`, `patchSpec`, `manifestSummary`, `setManifest`, `designSystem`) before `figma.ui.onmessage`; added the design-system status glue right after it (`BB_DS_STATUS`, strict mode in `clientStorage` under `bbStrict`); added `BUILD_SPEC` / `PATCH_SPEC` / `MANIFEST_SUMMARY` / `DESIGN_SYSTEM` / `BB_DS_REFRESH` / `BB_SET_STRICT` branches after `EXECUTE_CODE`; one line in the `documentchange` listener re-checks the design system on style changes |
 | `code.js` (upstream paths) | Fixed two `documentAccess: "dynamic-page"` violations inherited from upstream — `DEEP_GET_COMPONENT` and the `token-misuse` lint rule both used synchronous APIs that throw, inside swallowing `try`/`catch` blocks |
-| `ui.html` | Added `window.buildSpec` / `patchSpec` / `manifestSummary` and matching `methodMap` entries |
+| `ui.html` | Added `window.buildSpec` / `patchSpec` / `manifestSummary` / `designSystem`, matching `methodMap` entries, their `*_RESULT` cases (without them a direct command never resolved), and the design-system line with its "DS only" toggle |
 | `manifest.json` | Renamed to `BetterBridge`, id `betterbridge-mcp`. **Nothing else.** |
 
 > ⚠️ **`PLUGIN_VERSION` in `code.js` must stay a plain `X.Y.Z`.** The server parses it with a
@@ -224,13 +298,16 @@ The most useful number is your own. Measure it on your files.
 ```
 { type: "frame|text|rectangle|ellipse", name,
   layout: "row|col", gap, pad, radius,   // token NAME (string) or number
-  fill, stroke,                          // token NAME or "#hex"
+  fill, stroke,                          // token NAME, paint style NAME, or "#hex"
+  effect,                                // effect style NAME
   w, h,                                  // number | "hug" | "fill"
-  align: "center|end|between",           // main axis
-  cross: "center|end|stretch",           // cross axis
-  text, font: "Inter/Semi Bold", size,   // text only
-  children: [ ... ] }
+  align: "start|center|end|between",     // main axis (needs layout)
+  cross: "start|center|end|stretch",     // cross axis (needs layout)
+  text, textStyle,                       // text only; textStyle wins over font/size
+  font: "Inter/Semi Bold", size,         // text only
+  children: [ ... ] }                    // frame only
 ```
+Token names may be scoped: `"Collection:name"` or `"Library:name"`.
 
 **buildSpec** registry instance:
 ```
@@ -239,13 +316,24 @@ The most useful number is your own. Measure it on your files.
 
 **buildSpec** top level:
 ```
-{ at: {x, y}, parentId: "123:45", manifest: {...}, select: false, build: <node> }
+{ at: {x, y}, parentId: "123:45", manifest: {...}, select: false,
+  strict: true,    // force strict on for this build (can't force it off)
+  atomic: true,    // any unresolved entry removes the whole build
+  build: <node> }
+```
+Returns `{ id, name, w, h, reused, built, unresolved?, offSystem? }`, or
+`{ removed: true, unresolved }` for an atomic build that missed.
+
+**patchSpec** (array of ops, optional `{ strict: true }` second argument):
+```
+[{ id: "123:45", remove?, name?, text?, font?, textStyle?, props?, fill?, stroke?, effect?,
+   gap?, pad?, radius?, w?, h? }]
 ```
 
-**patchSpec** (array of ops):
-```
-[{ id: "123:45", remove?, name?, text?, font?, props?, fill?, stroke?, gap?, pad?, radius?, w?, h? }]
-```
+**designSystem**`(opts?)` — `{ connected, source: "library|local|none", libraries, tokens: {local, library},
+styles: {paint, text, effect}, registry, strict }`. `{ list: true }` adds every token name (grouped by
+collection) and style name with its key. `{ refresh: true }` re-reads enabled libraries first
+(they're otherwise cached for 5 minutes).
 
 **manifestSummary**`(opts?)` — `{ allPages: true }` scans the whole file instead of the current
 page. Returns `{ "Name": { nodeId, key, props? } }`.
