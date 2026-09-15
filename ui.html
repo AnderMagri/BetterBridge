@@ -537,8 +537,30 @@
       display: flex;
       flex-direction: column;
       gap: 8px;
-      padding-top: 10px;
+      padding-top: 8px;
       border-top: 1px solid var(--figma-color-border, #4a4a4a);
+    }
+
+    .sources-toggle .section-label {
+      padding-left: 0;
+      flex-shrink: 0;
+    }
+
+    .sources-summary {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 10px;
+    }
+
+    .sources-body {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .sources-body.open {
+      display: flex;
     }
 
     .section-label {
@@ -874,7 +896,15 @@
 
       <!-- BetterBridge: sources the bridge builds from -->
       <div class="sources" role="group" aria-labelledby="sources-label">
-        <div class="section-label" id="sources-label">Sources</div>
+        <!-- Collapsed by default: a one-line summary, expands to the rows below. -->
+        <button class="conn-toggle sources-toggle" id="sources-toggle" onclick="toggleSources()" aria-expanded="false" aria-controls="sources-body">
+          <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <polyline points="9 6 15 12 9 18"/>
+          </svg>
+          <span class="section-label" id="sources-label">Sources</span>
+          <span class="sources-summary" id="sources-summary">Checking…</span>
+        </button>
+        <div class="sources-body" id="sources-body">
 
         <div class="source">
           <div class="source-row" id="ds-row">
@@ -895,6 +925,7 @@
             <button class="icon-btn icon-btn--borderless" id="icons-forget" onclick="forgetIconSet()" title="Forget this icon set in every file" aria-label="Forget this icon set in every file" style="display:none">×</button>
           </div>
           <div class="ds-detail" id="icons-detail" role="status" aria-live="polite"></div>
+        </div>
         </div>
       </div>
     </div>
@@ -2946,6 +2977,7 @@
         : 'Off: raw values are allowed but reported. Click to require tokens and styles.';
 
       renderIcons(ds);
+      renderSourcesSummary(ds);
     }
 
     // Icons: a picker per file. Options are "No icon set", every set this user
@@ -2984,7 +3016,8 @@
         select.title = 'Icons from "' + icons.name + '" for this file';
       } else if (icons.usedOnPage) {
         mark.className = 'ds-mark local';
-        detail.textContent = plural(icons.usedOnPage, 'library icon') + ' used here. Connect that library for the full set';
+        detail.textContent = icons.usedOnPage + ' used on this page · connect the library for all';
+        detail.title = plural(icons.usedOnPage, 'library icon') + ' used on this page can be placed by name. To use every icon in that library, open it and choose "+ Connect icons from this file".';
         select.title = 'Icon set for this file';
       } else {
         mark.className = 'ds-mark';
@@ -3022,6 +3055,28 @@
       detail.textContent = msg.error;
       detail.className = 'ds-detail error';
       autoResize();
+    }
+
+    var _sourcesOpen = false;
+    function toggleSources() {
+      _sourcesOpen = !_sourcesOpen;
+      document.getElementById('sources-toggle').setAttribute('aria-expanded', _sourcesOpen ? 'true' : 'false');
+      document.getElementById('sources-body').classList.toggle('open', _sourcesOpen);
+      autoResize();
+    }
+
+    function renderSourcesSummary(ds) {
+      var el = document.getElementById('sources-summary');
+      if (!el) return;
+      var dsPart = ds.source === 'library' ? (ds.libraries || [])[0]
+        : ds.source === 'local' ? 'local DS'
+        : 'no DS';
+      var icons = ds.icons || {};
+      var iconPart = icons.connected ? plural(icons.count, 'icon')
+        : icons.usedOnPage ? plural(icons.usedOnPage, 'icon')
+        : 'no icons';
+      el.textContent = '· ' + dsPart + ' · ' + iconPart;
+      el.title = el.textContent.slice(2);
     }
 
     function refreshDesignSystem() {

@@ -107,7 +107,7 @@ The three that catch almost everyone:
 ## Honest status
 
 - **Works end to end.** Verified in Figma: create, edit in place, promote a component, and build
-  from the registry. `test-builder.js` covers the logic separately — 118 assertions against a
+  from the registry. `test-builder.js` covers the logic separately — 141 assertions against a
   mocked Figma API, runnable with `node test-builder.js` (no dependencies).
 - **You are among the first to install it from these instructions.** The plugin has been run
   properly; the written install path has not been walked start to finish by anyone else. If a

@@ -478,8 +478,11 @@
   // still usable by name: the plugin API can't list a library's components,
   // but it can follow placed instances back to them.
   //
-  // What counts as an icon: components on a page whose name contains "icon",
-  // or components named "Icon/…" / "Icons/…" anywhere.
+  // What counts as an icon: a component (for a set, its default variant) that
+  // is a small square (up to 64px) made only of shapes, with at least one
+  // vector and no text — that matches icon libraries whatever their naming
+  // (Phosphor's "CaretLeft", Material's "Icon/home", "arrow-right"). Also:
+  // anything on a page whose name contains "icon", or named "Icon/…".
   // ============================================================================
   var iconSource = null; // { name, fileKey, savedAt, icons: { name: { key, nodeId, set } } }
   var detectedIcons = {}; // name -> { key, set } for library icons placed on the current page
@@ -492,6 +495,29 @@
 
   var ICON_PREFIX = /^icons?\s*\/\s*/i;
   function iconKey(name) { return String(name).replace(ICON_PREFIX, '').trim(); }
+  // "caret-left", "Caret Left" and "CaretLeft" are the same icon.
+  function iconNorm(name) { return iconKey(name).toLowerCase().replace(/[\s_-]+/g, ''); }
+
+  var SHAPES = { VECTOR: 1, BOOLEAN_OPERATION: 1, STAR: 1, POLYGON: 1, LINE: 1, ELLIPSE: 1, RECTANGLE: 1, GROUP: 1, FRAME: 1 };
+  function looksLikeIcon(component) {
+    if (!component || typeof component.width !== 'number') return false;
+    if (component.width > 64 || Math.abs(component.width - component.height) > 0.5) return false;
+    var hasVector = false, onlyShapes = true;
+    (function walk(node) {
+      var kids = node.children || [];
+      for (var i = 0; i < kids.length && onlyShapes; i++) {
+        if (!SHAPES[kids[i].type]) { onlyShapes = false; return; }
+        if (kids[i].type === 'VECTOR' || kids[i].type === 'BOOLEAN_OPERATION') hasVector = true;
+        walk(kids[i]);
+      }
+    })(component);
+    return onlyShapes && hasVector;
+  }
+
+  function describe(node) {
+    var d = node && typeof node.description === 'string' ? node.description : '';
+    return d.length > 120 ? d.slice(0, 120) : d;
+  }
 
   globalThis.iconSummary = async function () {
     await figma.loadAllPagesAsync();
@@ -503,36 +529,43 @@
       for (var i = 0; i < nodes.length; i++) {
         var n = nodes[i];
         if (n.type === 'COMPONENT' && n.parent && n.parent.type === 'COMPONENT_SET') continue;
-        if (!wholePage && !ICON_PREFIX.test(n.name)) continue;
+        var sample = n.type === 'COMPONENT_SET' ? (n.defaultVariant || n.children[0]) : n;
+        if (!wholePage && !ICON_PREFIX.test(n.name) && !looksLikeIcon(sample)) continue;
         var key = iconKey(n.name);
         if (!key || icons[key]) continue;
         icons[key] = { key: n.key || null, nodeId: n.id, set: n.type === 'COMPONENT_SET' };
+        var tags = describe(n) || describe(sample);
+        if (tags) icons[key].tags = tags;
         count++;
       }
     }
     return { name: figma.root.name, fileKey: figma.fileKey || null, count: count, icons: icons };
   };
 
-  // Library icons placed on the current page. Small squares with icon-like
-  // names ("Icon/…", or lowercase names like "arrow-right" / "ic_add") whose
-  // main component comes from a library. Capped so a huge page stays fast.
-  var ICONISH_NAME = /^[a-z0-9]+([-_:][a-z0-9]+)*$/;
+  // Library icons placed on the current page: instances whose main component
+  // comes from a library and looks like an icon (see looksLikeIcon — judged on
+  // the main component, since instances are often resized). One lookup per
+  // distinct instance name, capped so a huge page stays fast.
   async function detectLibraryIcons() {
     var found = {};
     var instances = figma.currentPage.findAllWithCriteria({ types: ['INSTANCE'] });
-    var looked = 0;
-    for (var i = 0; i < instances.length && looked < 80; i++) {
+    var seen = {}, looked = 0;
+    for (var i = 0; i < instances.length && looked < 150; i++) {
       var inst = instances[i];
-      var square = inst.width <= 48 && Math.abs(inst.width - inst.height) < 0.5;
-      if (!ICON_PREFIX.test(inst.name) && !(square && ICONISH_NAME.test(iconKey(inst.name)))) continue;
+      if (seen[inst.name]) continue;
+      seen[inst.name] = true;
       looked++;
       var main = null;
       try { main = await inst.getMainComponentAsync(); } catch (e) {}
       if (!main || !main.remote) continue;
       var holder = main.parent && main.parent.type === 'COMPONENT_SET' ? main.parent : main;
+      if (!ICON_PREFIX.test(holder.name) && !looksLikeIcon(main)) continue;
       var name = iconKey(holder.name);
-      if (!ICON_PREFIX.test(holder.name) && !(square && ICONISH_NAME.test(name))) continue;
-      if (!found[name]) found[name] = { key: holder.key || main.key, set: holder.type === 'COMPONENT_SET' };
+      if (!found[name]) {
+        found[name] = { key: holder.key || main.key, set: holder.type === 'COMPONENT_SET' };
+        var tags = describe(holder) || describe(main);
+        if (tags) found[name].tags = tags;
+      }
     }
     detectedIcons = found;
     return Object.keys(found).length;
@@ -541,35 +574,36 @@
     return Object.keys(detectedIcons).map(function (n) { return detectedIcons[n].key; });
   };
 
-  function searchNames(names, query, limit) {
-    var q = String(query || '').toLowerCase();
+  // Name matches first, then keyword (description) matches.
+  function searchIcons(map, query, limit) {
+    var q = iconNorm(query || '');
+    var words = String(query || '').toLowerCase().split(/[\s,]+/).filter(Boolean);
     var max = typeof limit === 'number' ? limit : 20;
-    var hits = [];
-    for (var i = 0; i < names.length && hits.length < max; i++) {
-      if (!q || names[i].toLowerCase().indexOf(q) !== -1) hits.push(names[i]);
+    var names = Object.keys(map), byName = [], byTag = [];
+    for (var i = 0; i < names.length; i++) {
+      if (!q || iconNorm(names[i]).indexOf(q) !== -1) byName.push(names[i]);
+      else if (map[names[i]].tags && words.every(function (w) { return map[names[i]].tags.toLowerCase().indexOf(w) !== -1; })) byTag.push(names[i]);
     }
-    return hits;
+    return byName.concat(byTag).slice(0, max);
   }
 
   // Case-insensitive search of the active set (or, without one, of the library
   // icons used on this page). Small results only.
   globalThis.findIcons = async function (query, limit) {
     if (iconSource) {
-      var names = Object.keys(iconSource.icons);
-      return { connected: true, set: iconSource.name, total: names.length, icons: searchNames(names, query, limit) };
+      return { connected: true, set: iconSource.name, total: Object.keys(iconSource.icons).length, icons: searchIcons(iconSource.icons, query, limit) };
     }
     await detectLibraryIcons();
-    var used = Object.keys(detectedIcons);
-    return { connected: false, source: 'used on this page', total: used.length, icons: searchNames(used, query, limit) };
+    return { connected: false, source: 'used on this page', total: Object.keys(detectedIcons).length, icons: searchIcons(detectedIcons, query, limit) };
   };
 
   function lookupIn(map, name) {
     if (!map) return null;
     var want = iconKey(name);
     if (map[want]) return map[want];
-    var lower = want.toLowerCase();
+    var norm = iconNorm(want);
     for (var k in map) {
-      if (map.hasOwnProperty(k) && k.toLowerCase() === lower) return map[k];
+      if (map.hasOwnProperty(k) && iconNorm(k) === norm) return map[k];
     }
     return null;
   }
@@ -611,9 +645,11 @@
     }
     // Not connected (or not in the set): icon components on the current page.
     var local = figma.currentPage.findAllWithCriteria({ types: ['COMPONENT', 'COMPONENT_SET'] });
-    var want = iconKey(name).toLowerCase();
+    var want = iconNorm(name);
     for (var i = 0; i < local.length; i++) {
-      if (!ICON_PREFIX.test(local[i].name) || iconKey(local[i].name).toLowerCase() !== want) continue;
+      if (iconNorm(local[i].name) !== want) continue;
+      var sampleLocal = local[i].type === 'COMPONENT_SET' ? (local[i].defaultVariant || local[i].children[0]) : local[i];
+      if (!ICON_PREFIX.test(local[i].name) && !looksLikeIcon(sampleLocal)) continue;
       return { component: local[i].type === 'COMPONENT_SET' ? (local[i].defaultVariant || local[i].children[0]) : local[i] };
     }
     if (!iconSource) return { error: 'icon:' + name + ' (no icon set for this file — pick one next to Icons in the plugin window, or open the icon library and connect it)' };

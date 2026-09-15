@@ -84,9 +84,11 @@ The plugin's **Actions** menu runs recipes from the BetterBridge repo's
 1. `designSystem()` includes `icons: { connected, name, count, usedOnPage? }`.
    The icon set is chosen **per file**.
 2. Place icons with `{ icon: "<name>" }` in a buildSpec node. Find names with
-   `await findIcons("arrow")`. It returns a short list, so **never** ask for the
-   whole set. Without a connected set, it searches library icons already used
-   on the current page.
+   `await findIcons("arrow")`. It matches names and the icons' keywords
+   ("chevron" finds CaretLeft), and names are forgiving ("caret-left" =
+   "CaretLeft"). It returns a short list, so **never** ask for the whole set.
+   Without a connected set, it searches library icons already used on the
+   current page.
 3. Never build an icon out of vectors or shapes. If the icon isn't available,
    say so. The user picks or connects a set from the Icons picker in the
    plugin window (open the icon library → **+ Connect icons from this file**).

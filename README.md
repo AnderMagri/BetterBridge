@@ -104,15 +104,18 @@ From top to bottom:
    when it started, and when it last sent a command. The most recently used one is marked
    **in use**; one with no recent commands is usually left over from an old session. (The
    server doesn't tell the plugin which app or project started it, so that can't be shown.)
-3. **Sources**, below a divider — what the bridge builds from:
+3. **Sources**, below a divider — what the bridge builds from. Collapsed to one line
+   (e.g. *Sources · local DS · 19 icons*); click it to expand:
    - **Design system.** **■ DS: Acme Design System** (tokens from an enabled library),
      **□ DS: this file** (this file's own tokens and styles), or **No design system**. Counts
      underneath; click the name to re-check. The **DS only** toggle is described below.
    - **Icons.** A picker with the icon set **this file** uses.
      - **Connecting a set:** open the icon library file and choose **+ Connect icons from this
        file**. The plugin saves that library's icons for you, and Claude places them with
-       `{ icon: "arrow-right" }`. Icons are components on a page whose name contains "icon", or
-       components named `Icon/…`. The library must be published for other files to import them.
+       `{ icon: "arrow-right" }`. An icon is a small square component (up to 64px) made only of
+       vector shapes, with no text — that's how Phosphor, Material and most icon libraries are
+       built, whatever they name things. Anything on a page named "…icon…", or named `Icon/…`,
+       counts too. The library must be published for other files to import it.
      - **Automatic pick:** a file with no set chosen picks one when it already uses icons from a
        connected library.
      - **Without a set:** library icons already placed on the current page still work by
@@ -265,14 +268,14 @@ dumping their internals.
 | Actions menu: **Couldn't load saved actions: HTTP 404** | The branch in `BB_ACTIONS_BASE` (ui.html) hasn't been pushed, or was merged and deleted | Push the branch, or point `BB_ACTIONS_BASE` at `main` and re-import |
 | Actions menu: **Failed to fetch** | The plugin was imported before r4, so GitHub isn't in its allowed network domains | Re-import `manifest.json` |
 | Actions menu: an edit you pushed doesn't show up | GitHub serves raw files from a cache for a few minutes | Wait, then click **Load** |
-| Icons: **No icons found in this file** | Icons aren't on a page named "…icon…", and aren't named `Icon/…` | Rename the page or the components, then Connect again |
+| Icons: **No icons found in this file** | The icons aren't small squares made of vectors (e.g. they contain text or are wider than 64px), aren't on an "…icon…" page, and aren't named `Icon/…` | Put them on a page named "Icons", then Connect again |
 | Icons row says **library icons used here** but Claude can't find one | Only icons already placed on this page are known without connecting | Open that icon library and choose **+ Connect icons from this file** |
 | **Build the DS page** stops: *Run "Create DS foundation" first* | The page recipe needs the foundation's collections and styles | Run **Create DS foundation**, then run the page again |
 | `unresolved: ["icon:… could not be imported"]` | The icon library isn't published, or you don't have access to it | Publish the library, or build in the library file itself |
 | Design-system line says **No design system found** but a library is enabled | The library publishes only styles/components, or it was enabled after the check | Click the line to re-check; list style-only libraries in the manifest |
 | `failed` on a `patchSpec` op | Usually a stale or wrong node id | Re-read the current ids |
 
-**Verify the plugin itself:** `node test-builder.js` — no dependencies, runs in a second, 136 assertions.
+**Verify the plugin itself:** `node test-builder.js` — no dependencies, runs in a second, 141 assertions.
 
 ---
 
@@ -307,7 +310,7 @@ The most useful number is your own. Measure it on your files.
 - **Works end to end.** Verified in Figma: create, edit in place, promote a component, and build
   from the registry (`reused: 3, built: 1`).
 - **Logic is covered by tests.** `test-builder.js` runs the real builder module against a mocked
-  Figma API — 136 assertions across create, registry resolution, variable binding, library tokens,
+  Figma API — 141 assertions across create, registry resolution, variable binding, library tokens,
   styles, icon sources, strict mode, edit, delete, failure handling, and saved-action recipes (including the
   real recipes in `actions/`). It also checks that `code.js` ships the exact modules the tests ran.
 - **Not yet proven across real design systems.** The least-tested paths are **variant and

@@ -627,6 +627,49 @@ function ok(cond, label) {
     await designSystem();
   }
 
+  console.log('--- 26d: icons are recognised by shape, not only by name (Phosphor-style libraries) ---');
+  {
+    const { iconSummary, findIcons } = sandbox;
+    const vector = () => ({ type: 'VECTOR' });
+    // A library main component the way Phosphor ships it: set "CaretLeft", variant "Weight=Bold", 32x32 vectors.
+    const phosphorMain = { remote: true, name: 'Weight=Bold', key: 'k-caret-bold', width: 32, height: 32, description: '', children: [vector()],
+      parent: { type: 'COMPONENT_SET', name: 'CaretLeft', key: 'k-caret-set', description: 'chevron, directional, pointer' } };
+    const logoMain = { remote: true, name: 'Size=24', key: 'k-visa', width: 35, height: 24, children: [{ type: 'RECTANGLE' }, { type: 'BOOLEAN_OPERATION' }],
+      parent: { type: 'COMPONENT_SET', name: 'Payment Method/Visa', key: 'k-visa-set' } };
+    const checkboxMain = { remote: true, name: 'Checked=True', key: 'k-cb', width: 20, height: 20, children: [{ type: 'TEXT' }, vector()],
+      parent: { type: 'COMPONENT_SET', name: 'Checkbox', key: 'k-cb-set' } };
+    const mk = (name, w, main) => { const n = baseNode('INSTANCE', { name, width: w, height: w }); n.getMainComponentAsync = async () => main; return n; };
+    const caret1 = mk('CaretLeft', 16, phosphorMain), caret2 = mk('CaretLeft', 16, phosphorMain), visa = mk('Payment Method/Visa', 35, logoMain), cb = mk('Checkbox', 20, checkboxMain);
+    [caret1, caret2, visa, cb].forEach(n => currentPage.appendChild(n));
+    const caretSet = baseNode('COMPONENT_SET', { name: 'CaretLeft' });
+    const caretVariant = makeComponent({ name: 'Weight=Bold' });
+    caretSet.appendChild(caretVariant); caretSet.defaultVariant = caretVariant;
+    libraryComponentSets['k-caret-set'] = caretSet;
+
+    const ds = await designSystem();
+    ok(ds.icons.usedOnPage === 1, 'a 32x32 vector-only set is an icon; logos (not square) and text components are not');
+    ok((await findIcons('chevron')).icons[0] === 'CaretLeft', 'findIcons matches icon keywords, not only names');
+    const r = await buildSpec({ build: { type: 'frame', name: 'Nav', layout: 'row', children: [{ icon: 'caret-left' }] } });
+    ok(!r.unresolved && nodeIndex.get(r.id).children[0].type === 'INSTANCE', '"caret-left" finds "CaretLeft"');
+    [caret1, caret2, visa, cb].forEach(n => n.remove());
+
+    // Connecting from the library file itself: no "Icons" page, no "Icon/" prefix.
+    const libPage = baseNode('PAGE', { name: 'Library' });
+    const set = baseNode('COMPONENT_SET', { name: 'ShoppingCart' });
+    set.key = 'k-cart'; set.description = 'ecommerce, basket';
+    const regular = makeComponent({ name: 'Weight=Regular', width: 32, height: 32 });
+    regular.appendChild(baseNode('VECTOR', {}));
+    set.appendChild(regular); set.defaultVariant = regular;
+    const button = makeComponent({ name: 'Button', width: 120, height: 40 });
+    libPage.appendChild(set); libPage.appendChild(button);
+    rootDoc.children.push(libPage);
+    const summary = await iconSummary();
+    ok(summary.icons['ShoppingCart'] && summary.icons['ShoppingCart'].set && summary.icons['ShoppingCart'].tags === 'ecommerce, basket', 'iconSummary finds shape-based icon sets with their keywords');
+    ok(!summary.icons['Button'], 'ordinary components are not icons');
+    rootDoc.children.splice(rootDoc.children.indexOf(libPage), 1);
+    await designSystem();
+  }
+
   // ==========================================================================
   // r4: saved actions — recipes and the actions/ folder
   // ==========================================================================
