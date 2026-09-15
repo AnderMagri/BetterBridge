@@ -9,6 +9,8 @@
 //   manifestSummary()              — cheap {name: {nodeId,key,props}} export
 //   setManifest({...})             — set the session registry once
 //   designSystem()                 — is this file connected to a design system?
+//   findIcons("arrow")             — search the connected icon set by name
+//   iconSummary()                  — the icons in this file (used by "Connect")
 //
 // WHY: verbose expansion (font loading, variable binding, instance creation,
 // slot filling) happens HERE, inside the plugin, where it costs zero model
@@ -31,7 +33,8 @@
     text:      ['type', 'name', 'text', 'font', 'size', 'textStyle', 'fill', 'stroke', 'effect', 'w', 'h'],
     rectangle: ['type', 'name', 'radius', 'fill', 'stroke', 'effect', 'w', 'h'],
     ellipse:   ['type', 'name', 'fill', 'stroke', 'effect', 'w', 'h'],
-    instance:  ['use', 'type', 'name', 'props', 'slots', 'w', 'h']
+    instance:  ['use', 'type', 'name', 'props', 'slots', 'w', 'h'],
+    icon:      ['icon', 'type', 'name', 'w', 'h']
   };
   var BUILD_TOP_FIELDS = ['build', 'manifest', 'at', 'parentId', 'select', 'strict', 'atomic'];
   var PATCH_FIELDS = ['id', 'remove', 'name', 'text', 'font', 'textStyle', 'props', 'fill', 'stroke', 'effect', 'gap', 'pad', 'radius', 'w', 'h'];
@@ -461,6 +464,104 @@
   }
 
   // ============================================================================
+  // Icons — a second source next to the design system.
+  //
+  // An icon set is "connected" once, from the plugin window, while its library
+  // file is open: iconSummary() lists that file's icon components by name and
+  // key, and the plugin saves the list per user. From then on, in any file,
+  // { icon: "arrow-right" } places a real instance — no manifest, and no icon
+  // list ever passes through Claude's context (findIcons searches it locally).
+  //
+  // What counts as an icon: components on a page whose name contains "icon",
+  // or components named "Icon/…" / "Icons/…" anywhere.
+  // ============================================================================
+  var iconSource = null; // { name, fileKey, savedAt, icons: { name: { key, nodeId, set } } }
+  globalThis.__bbSetIconSource = function (src) {
+    iconSource = src && src.icons ? src : null;
+    notifyChange();
+    return iconSource ? Object.keys(iconSource.icons).length : 0;
+  };
+  globalThis.__bbGetIconSource = function () { return iconSource; };
+
+  var ICON_PREFIX = /^icons?\s*\/\s*/i;
+  function iconKey(name) { return String(name).replace(ICON_PREFIX, '').trim(); }
+
+  globalThis.iconSummary = async function () {
+    await figma.loadAllPagesAsync();
+    var icons = {}, count = 0;
+    for (var p = 0; p < figma.root.children.length; p++) {
+      var page = figma.root.children[p];
+      var wholePage = /icon/i.test(page.name);
+      var nodes = page.findAllWithCriteria({ types: ['COMPONENT', 'COMPONENT_SET'] });
+      for (var i = 0; i < nodes.length; i++) {
+        var n = nodes[i];
+        if (n.type === 'COMPONENT' && n.parent && n.parent.type === 'COMPONENT_SET') continue;
+        if (!wholePage && !ICON_PREFIX.test(n.name)) continue;
+        var key = iconKey(n.name);
+        if (!key || icons[key]) continue;
+        icons[key] = { key: n.key || null, nodeId: n.id, set: n.type === 'COMPONENT_SET' };
+        count++;
+      }
+    }
+    return { name: figma.root.name, fileKey: figma.fileKey || null, count: count, icons: icons };
+  };
+
+  // Case-insensitive search of the connected set. Small results only.
+  globalThis.findIcons = function (query, limit) {
+    if (!iconSource) return { connected: false, icons: [] };
+    var q = String(query || '').toLowerCase();
+    var max = typeof limit === 'number' ? limit : 20;
+    var names = Object.keys(iconSource.icons);
+    var hits = [];
+    for (var i = 0; i < names.length && hits.length < max; i++) {
+      if (!q || names[i].toLowerCase().indexOf(q) !== -1) hits.push(names[i]);
+    }
+    return { connected: true, set: iconSource.name, total: names.length, icons: hits };
+  };
+
+  function lookupIcon(name) {
+    if (!iconSource) return null;
+    var want = iconKey(name);
+    if (iconSource.icons[want]) return iconSource.icons[want];
+    var lower = want.toLowerCase();
+    for (var k in iconSource.icons) {
+      if (iconSource.icons.hasOwnProperty(k) && k.toLowerCase() === lower) return iconSource.icons[k];
+    }
+    return null;
+  }
+
+  // Returns { component } | { error }.
+  async function resolveIcon(name) {
+    var ref = lookupIcon(name);
+    if (ref) {
+      if (ref.key) {
+        try {
+          if (ref.set) {
+            var set = await figma.importComponentSetByKeyAsync(ref.key);
+            return { component: set.defaultVariant || set.children[0] };
+          }
+          return { component: await figma.importComponentByKeyAsync(ref.key) };
+        } catch (e) { /* unpublished, or no access — try the node id below */ }
+      }
+      if (ref.nodeId && (!iconSource.fileKey || iconSource.fileKey === figma.fileKey)) {
+        var node = await figma.getNodeByIdAsync(ref.nodeId);
+        if (node && node.type === 'COMPONENT') return { component: node };
+        if (node && node.type === 'COMPONENT_SET') return { component: node.defaultVariant || node.children[0] };
+      }
+      return { error: 'icon:' + name + ' could not be imported from "' + iconSource.name + '" (is that library published, and do you have access?)' };
+    }
+    // Not connected (or not in the set): icon components on the current page.
+    var local = figma.currentPage.findAllWithCriteria({ types: ['COMPONENT', 'COMPONENT_SET'] });
+    var want = iconKey(name).toLowerCase();
+    for (var i = 0; i < local.length; i++) {
+      if (!ICON_PREFIX.test(local[i].name) || iconKey(local[i].name).toLowerCase() !== want) continue;
+      return { component: local[i].type === 'COMPONENT_SET' ? (local[i].defaultVariant || local[i].children[0]) : local[i] };
+    }
+    if (!iconSource) return { error: 'icon:' + name + ' (no icon set connected — open the icon library and click Connect next to Icons in the plugin window)' };
+    return { error: 'icon:' + name + ' is not in "' + iconSource.name + '" — search with findIcons("' + short(iconKey(name)) + '")' };
+  }
+
+  // ============================================================================
   // setManifest — set the session-wide registry once. Pass the whole
   // figma.manifest.json ({ components, styles }) or a bare components map.
   // ============================================================================
@@ -546,7 +647,10 @@
       tokens: { local: local.count, library: lib.count },
       styles: styles,
       registry: Object.keys(globalThis.__BB_MANIFEST || {}).length,
-      strict: strict
+      strict: strict,
+      icons: iconSource
+        ? { connected: true, name: iconSource.name, count: Object.keys(iconSource.icons).length }
+        : { connected: false, count: 0 }
     };
     if (lib.error) out.libraryError = lib.error;
     if (local.error) out.localError = local.error;
@@ -650,6 +754,20 @@
         return null;
       }
       var node;
+
+      // ----- icon from the connected icon set -----
+      if (s.icon) {
+        checkFields(ctx, s, FIELDS.icon, 'icon "' + s.icon + '"');
+        var ic = await resolveIcon(s.icon);
+        if (!ic.component) { ctx.unresolved.push(ic.error); return null; }
+        node = ic.component.createInstance();
+        track(node);
+        reused++;
+        if (parent) parent.appendChild(node);
+        if (s.name) node.name = s.name;
+        applySizing(ctx, node, s.w, s.h);
+        return node;
+      }
 
       // ----- registry instance -----
       if (s.use) {
@@ -921,5 +1039,5 @@
     return out;
   };
 
-  console.log('🌉 [BetterBridge] buildSpec / patchSpec / manifestSummary / designSystem ready — call via figma_execute');
+  console.log('🌉 [BetterBridge] buildSpec / patchSpec / manifestSummary / designSystem / findIcons ready — call via figma_execute');
 })();

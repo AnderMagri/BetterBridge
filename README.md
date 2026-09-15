@@ -95,34 +95,43 @@ buildSpec({ build: {
 - **Same name twice?** It's reported as `ambiguous:` instead of guessed. Prefix the collection or
   library: `"Semantic:color/primary"`. A variable in this file beats a library one with the same name.
 
+### The plugin window
+
+From top to bottom:
+
+1. **Status and Actions.** Whether an AI app is connected, with **Pause** and **Actions**.
+2. **▸ N connections.** Click the arrow to list each connected MCP server: its port, version,
+   when it started, and when it last sent a command. The most recently used one is marked
+   **in use**; one with no recent commands is usually left over from an old session. (The
+   server doesn't tell the plugin which app or project started it, so that can't be shown.)
+3. **Sources**, below a divider — what the bridge builds from:
+   - **Design system.** **■ DS: Acme Design System** (tokens from an enabled library),
+     **□ DS: this file** (this file's own tokens and styles), or **No design system**. Counts
+     underneath; click the name to re-check. The **DS only** toggle is described below.
+   - **Icons.** Open your icon library file and click **Connect**. The plugin saves that
+     file's icon components for you, and from then on Claude can place them in **any** file
+     with `{ icon: "arrow-right" }`. Icons are components on a page whose name contains
+     "icon", or components named `Icon/…`. The library must be published for other files to
+     import them. **Disconnect** forgets the set.
+
 ### Saved actions
 
-The **Actions** button in the plugin window opens a menu of saved actions, read
-live from the [`actions/`](actions/) folder on GitHub:
+**Actions** opens a bottom sheet of saved actions, read live from the
+[`actions/`](actions/) folder on GitHub. Each row is the action's name, then:
 
-- **Runs here** — a recipe the plugin applies itself. **Claude isn't involved, so it
-  uses no tokens.** For example, **Create DS foundation** sets up Primitives,
-  Semantic (Light/Dark) and Dimensions tokens, 10 text styles and 5 shadows in one click.
-- **For Claude** — a saved prompt. **Copy prompt**, paste it into Claude, done. For
-  example, **Build the DS page** builds specimens and core components on top of
-  the foundation.
+- **Run** — a recipe the plugin applies itself. **Claude isn't involved, so it uses no tokens.**
+  For example, **Create DS foundation** sets up Primitives, Semantic (Light/Dark) and
+  Dimensions tokens, 10 text styles and 5 shadows in one click.
+- **Copy** — a saved prompt. Paste it into Claude. For example, **Build the DS page** builds
+  specimens and core components on top of the foundation.
+- **×** — removes it from your list (just for you).
 
-The **Activity** log lives at the bottom of the same menu. To add your own
-actions, see [actions/README.md](actions/README.md).
+**Load**, at the bottom, fetches the list from GitHub again and brings back anything you
+removed. **Activity** opens the log. Hover a name for its description. To add your own actions,
+see [actions/README.md](actions/README.md).
 
 > Cloud pairing is hidden in BetterBridge, and a stored pairing no longer
 > reconnects in the background. Claude and Figma on the same machine don't need it.
-
-### The design-system line
-
-The plugin window shows what it found, under the connection status:
-
-- **■ DS: Acme Design System** — tokens from an enabled library
-- **□ DS: this file** — this file's own tokens and styles
-- **No design system found** — builds use raw values
-
-Below it are the counts (tokens · styles · registry components). Click the line to re-check,
-for example after enabling a library.
 
 > The plugin API can't see libraries that publish **only styles or components** (no tokens).
 > List those in `figma.manifest.json` — see [Using it on a project](#using-it-on-a-project).
@@ -239,11 +248,13 @@ dumping their internals.
 | `unresolved: ["mixedFont:…"]` | Text had mixed styling; it was changed, but that styling may be lost | Pass `font` or `textStyle` to choose one on purpose |
 | Actions menu: **Couldn't load saved actions: HTTP 404** | The branch in `BB_ACTIONS_BASE` (ui.html) hasn't been pushed, or was merged and deleted | Push the branch, or point `BB_ACTIONS_BASE` at `main` and re-import |
 | Actions menu: **Failed to fetch** | The plugin was imported before r4, so GitHub isn't in its allowed network domains | Re-import `manifest.json` |
-| Actions menu: an edit you pushed doesn't show up | GitHub serves raw files from a cache for a few minutes | Wait, then click ↻ |
+| Actions menu: an edit you pushed doesn't show up | GitHub serves raw files from a cache for a few minutes | Wait, then click **Load** |
+| Icons: **No icons found in this file** | Icons aren't on a page named "…icon…", and aren't named `Icon/…` | Rename the page or the components, then Connect again |
+| `unresolved: ["icon:… could not be imported"]` | The icon library isn't published, or you don't have access to it | Publish the library, or build in the library file itself |
 | Design-system line says **No design system found** but a library is enabled | The library publishes only styles/components, or it was enabled after the check | Click the line to re-check; list style-only libraries in the manifest |
 | `failed` on a `patchSpec` op | Usually a stale or wrong node id | Re-read the current ids |
 
-**Verify the plugin itself:** `node test-builder.js` — no dependencies, runs in a second, 107 assertions.
+**Verify the plugin itself:** `node test-builder.js` — no dependencies, runs in a second, 118 assertions.
 
 ---
 
@@ -278,12 +289,12 @@ The most useful number is your own. Measure it on your files.
 - **Works end to end.** Verified in Figma: create, edit in place, promote a component, and build
   from the registry (`reused: 3, built: 1`).
 - **Logic is covered by tests.** `test-builder.js` runs the real builder module against a mocked
-  Figma API — 107 assertions across create, registry resolution, variable binding, library tokens,
-  styles, strict mode, edit, delete, failure handling, and saved-action recipes (including the
+  Figma API — 118 assertions across create, registry resolution, variable binding, library tokens,
+  styles, icon sources, strict mode, edit, delete, failure handling, and saved-action recipes (including the
   real recipes in `actions/`). It also checks that `code.js` ships the exact modules the tests ran.
 - **Not yet proven across real design systems.** The least-tested paths are **variant and
   instance-swap properties**, **mixed-font text layers**, and **everything new in r3 and r4** —
-  library tokens, styles, strict mode, the design-system line, and saved actions are tested
+  library tokens, styles, strict mode, the Sources section (design system and icons), and saved actions are tested
   against a mock only and have not yet been run in real Figma. If you use those, that's the most
   valuable thing you can report back.
 - **This is a fork you now maintain.** Upstream updates mean re-applying the changes below by hand.
@@ -300,7 +311,8 @@ The most useful number is your own. Measure it on your files.
 | `code.js` (upstream paths) | Fixed two `documentAccess: "dynamic-page"` violations inherited from upstream — `DEEP_GET_COMPONENT` and the `token-misuse` lint rule both used synchronous APIs that throw, inside swallowing `try`/`catch` blocks |
 | `code.js` (r4) | Added the recipe module (`runRecipe`) after the builder module, and a `BB_RUN_RECIPE` branch |
 | `ui.html` | Added `window.buildSpec` / `patchSpec` / `manifestSummary` / `designSystem`, matching `methodMap` entries, their `*_RESULT` cases (without them a direct command never resolved), and the design-system line with its "DS only" toggle |
-| `ui.html` (r4) | Cloud icon and pairing rows hidden (`.bb-hidden`), and `CLOUD_CONFIG_RESTORED` no longer auto-dials (`BB_CLOUD_PAIRING = false`). The `+` button became **Actions**; the upstream sub-toolbar row now holds the saved-actions list, with Activity at the bottom. `BB_ACTIONS_BASE` sets the GitHub branch actions are read from |
+| `ui.html` (r4) | Layout: everything but the sheet sits in `#bb-main`; more spacing (body padding, `.wrap` gap). Cloud icon and pairing rows hidden (`.bb-hidden`), and `CLOUD_CONFIG_RESTORED` no longer auto-dials (`BB_CLOUD_PAIRING = false`). `renderStatusMeta` now renders a collapsible connections list; `attachWsHandlers` records `lastCommandAt` per connection. Sources section (design system, icons). The `+` button became **Actions**, and the upstream `sub-toolbar` row is now a bottom sheet (name · Run/Copy · remove, Load and Activity at the bottom). `BB_ACTIONS_BASE` sets the GitHub branch actions are read from |
+| `code.js` (r4, icons) | Per-user `clientStorage` keys `bbIconSource` and `bbHiddenActions`; `BB_ICONS_CONNECT` / `BB_ICONS_DISCONNECT` / `BB_SET_HIDDEN_ACTIONS` branches |
 | `manifest.json` | Renamed to `BetterBridge`, id `betterbridge-mcp`. r4 adds `https://raw.githubusercontent.com` to both network domain lists, for saved actions |
 
 > ⚠️ **`PLUGIN_VERSION` in `code.js` must stay a plain `X.Y.Z`.** The server parses it with a
@@ -353,8 +365,13 @@ Returns `{ id, name, w, h, reused, built, unresolved?, offSystem? }`, or
    gap?, pad?, radius?, w?, h? }]
 ```
 
+**buildSpec** icon node: `{ icon: "arrow-right", name?, w?, h? }` — an instance from the connected icon set.
+
+**findIcons**`(query, limit = 20)` — `{ connected, set, total, icons: [names] }`. Searches the connected
+set without returning all of it.
+
 **designSystem**`(opts?)` — `{ connected, source: "library|local|none", libraries, tokens: {local, library},
-styles: {paint, text, effect}, registry, strict }`. `{ list: true }` adds every token name (grouped by
+styles: {paint, text, effect}, registry, strict, icons: {connected, name, count} }`. `{ list: true }` adds every token name (grouped by
 collection) and style name with its key. `{ refresh: true }` re-reads enabled libraries first
 (they're otherwise cached for 5 minutes).
 

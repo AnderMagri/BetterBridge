@@ -526,6 +526,64 @@ function ok(cond, label) {
   }
 
   // ==========================================================================
+  // r4: icon sources
+  // ==========================================================================
+  console.log('--- 26b: icons — connect, search, build, and honest misses ---');
+  {
+    const { iconSummary, findIcons } = sandbox;
+    let r0 = await buildSpec({ build: { icon: 'arrow-right' } }).catch(e => ({ error: e.message }));
+    ok(r0.error && r0.error.indexOf('no icon set connected') !== -1, 'without a connected set, the miss says how to connect one');
+
+    // An icon library file: an "Icons" page plus an Icon/ component elsewhere.
+    const iconsPage = baseNode('PAGE', { name: '🔣 Icons' });
+    const arrow = makeComponent({ name: 'arrow-right', key: 'ik-arrow' });
+    iconsPage.appendChild(arrow);
+    const chevSet = baseNode('COMPONENT_SET', { name: 'Chevron' });
+    chevSet.key = 'ik-chevron';
+    const chevDefault = makeComponent({ name: 'Size=24' });
+    chevSet.appendChild(chevDefault);
+    chevSet.defaultVariant = chevDefault;
+    iconsPage.appendChild(chevSet);
+    const star = makeComponent({ name: 'Icon/Star', key: null });
+    currentPage.appendChild(star);
+    rootDoc.children.push(iconsPage);
+    rootDoc.name = 'Acme Icons';
+    figmaMock.fileKey = 'icons-file';
+
+    const summary = await iconSummary();
+    ok(summary.name === 'Acme Icons' && summary.count === 3, 'iconSummary finds icons by page name and by "Icon/" prefix');
+    ok(summary.icons['arrow-right'].key === 'ik-arrow' && summary.icons['Chevron'].set === true, 'keys and component sets captured');
+    ok(summary.icons['Star'] && !summary.icons['Button/Primary'], '"Icon/" prefix stripped; ordinary components ignored');
+
+    sandbox.__bbSetIconSource(summary);
+    const found = findIcons('chev');
+    ok(found.connected && found.icons.length === 1 && found.icons[0] === 'Chevron' && found.total === 3, 'findIcons searches without returning the whole set');
+
+    libraryComponentSets['ik-chevron'] = chevSet;
+    figmaMock.importComponentByKeyAsync = async (key) => { if (key === 'ik-arrow') return arrow; throw new Error('not published'); };
+    const r = await buildSpec({ build: { type: 'frame', name: 'IconRow', layout: 'row', children: [
+      { icon: 'arrow-right' }, { icon: 'chevron', name: 'Next' }, { icon: 'Icon/Star' }
+    ] } });
+    const row = nodeIndex.get(r.id);
+    ok(!r.unresolved && row.children.length === 3 && row.children.every(c => c.type === 'INSTANCE'), 'icons placed as real instances (key, set key, case-insensitive, prefixed name)');
+    ok(row.children[1].name === 'Next', 'icon instance can be named');
+
+    const r2 = await buildSpec({ build: { type: 'frame', name: 'Missing', layout: 'row', children: [{ icon: 'rocket' }] } });
+    ok(has(r2, 'icon:rocket is not in "Acme Icons"') && r2.unresolved[0].indexOf('findIcons') !== -1, 'unknown icon reported with a search hint');
+
+    figmaMock.fileKey = 'another-file';
+    const r3 = await buildSpec({ build: { type: 'frame', name: 'OtherFile', layout: 'row', children: [{ icon: 'Star' }] } });
+    ok(has(r3, 'icon:Star could not be imported'), 'unpublished icon from another file reported, not faked');
+
+    const ds = await designSystem();
+    ok(ds.icons.connected && ds.icons.name === 'Acme Icons' && ds.icons.count === 3, 'designSystem() reports the icon source');
+    sandbox.__bbSetIconSource(null);
+    ok((await designSystem()).icons.connected === false && findIcons('x').connected === false, 'disconnecting clears it');
+    figmaMock.importComponentByKeyAsync = async () => { throw new Error('no library in mock'); };
+    figmaMock.fileKey = undefined;
+  }
+
+  // ==========================================================================
   // r4: saved actions — recipes and the actions/ folder
   // ==========================================================================
   // Variable/style creation for the recipe runner. Added last so the builder

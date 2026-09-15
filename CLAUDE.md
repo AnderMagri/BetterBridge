@@ -77,6 +77,18 @@ The plugin's **Actions** menu runs recipes from the BetterBridge repo's
 - `runRecipe(recipe)` is also available through `figma_execute`, for a recipe
   the user gives you. It returns `{ ok, created, skipped, unresolved? }`.
 
+## Icons — use the connected set, never draw icons
+
+1. `designSystem()` includes `icons: { connected, name, count }`.
+2. If `connected` is true, place icons with `{ icon: "<name>" }` in a buildSpec
+   node. Find names with `findIcons("arrow")`. It returns a short list, so
+   **never** ask for the whole set.
+3. Never build an icon out of vectors or shapes. If none is connected, or the
+   icon isn't in the set, say so. The user connects a set by opening the icon
+   library and clicking **Connect** next to Icons in the plugin window.
+4. `"icon:…"` in `unresolved` → not in the set (search with `findIcons`), or
+   the library isn't published so it can't be imported here.
+
 ## Registry first — never rebuild what exists
 
 1. At the start of a session, if `figma.manifest.json` exists in the project
@@ -171,6 +183,8 @@ cheapest possible form.
 ```
 Token names may be scoped: `"Collection:name"` or `"Library:name"`.
 
+**buildSpec** icon: `{ icon: "arrow-right", name?, w?, h? }`
+
 **buildSpec** registry instance:
 ```
 { use: "Button/Primary",
@@ -191,7 +205,9 @@ Token names may be scoped: `"Collection:name"` or `"Library:name"`.
 ```
 
 **designSystem**`(opts?)` — returns `{ connected, source, libraries, tokens,
-styles, registry, strict }`. `{ list: true }` adds every token and style name;
+styles, registry, strict, icons }`.
+
+**findIcons**`(query, limit?)` — `{ connected, set, total, icons: [names] }`. `{ list: true }` adds every token and style name;
 `{ refresh: true }` re-reads enabled libraries first.
 
 **manifestSummary**`(opts?)` — `{ allPages: true }` to scan the whole file

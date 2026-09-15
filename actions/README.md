@@ -2,15 +2,15 @@
 
 Everything in this folder shows up under **Actions** in the BetterBridge plugin
 window. The plugin reads it **live from GitHub**, so a change pushed here reaches
-everyone the next time they open the menu or click ↻. No re-import is needed.
+everyone the next time they open the sheet or click **Load**. No re-import is needed.
 GitHub can take a few minutes to serve a new version.
 
 There are two kinds of action.
 
-| Kind | Lives in | What the menu does | Uses Claude tokens? |
+| Kind | Lives in | What the sheet does | Uses Claude tokens? |
 |---|---|---|---|
-| **Recipe** | `recipes/*.json` | **Run in Figma** — the plugin applies it directly | **No** |
-| **Prompt** | `prompts/*.md` | **Copy prompt** — you paste it into Claude | Yes, but you don't have to rewrite the instructions |
+| **Recipe** | `recipes/*.json` | **Run** — the plugin applies it directly | **No** |
+| **Prompt** | `prompts/*.md` | **Copy** — you paste it into Claude | Yes, but you don't have to rewrite the instructions |
 
 Use a **recipe** for work that's the same every time, like creating tokens or
 styles. Use a **prompt** for work that needs judgment, like building
