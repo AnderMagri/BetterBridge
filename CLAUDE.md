@@ -65,6 +65,18 @@ revising something that already exists, not creating from nothing.
 5. With strict mode off, raw values apply but are listed in `offSystem`.
    Mention them to the user rather than ignoring them.
 
+## Saved actions — don't redo what a recipe does for free
+
+The plugin's **Actions** menu runs recipes from the BetterBridge repo's
+`actions/` folder with no Claude tokens at all.
+
+- If the user asks for a **DS foundation** (base tokens, text styles, shadows)
+  and `designSystem()` shows none, tell them to run **Actions → Create DS
+  foundation** in the plugin window rather than building it yourself.
+- When a user pastes a saved prompt, follow it as written.
+- `runRecipe(recipe)` is also available through `figma_execute`, for a recipe
+  the user gives you. It returns `{ ok, created, skipped, unresolved? }`.
+
 ## Registry first — never rebuild what exists
 
 1. At the start of a session, if `figma.manifest.json` exists in the project

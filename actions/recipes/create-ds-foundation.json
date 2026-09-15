@@ -1,0 +1,1035 @@
+{
+  "id": "create-ds-foundation",
+  "title": "Create DS foundation",
+  "description": "Primitive colors and spacing, semantic Light/Dark colors, spacing and radius tokens, 10 text styles and 5 shadow levels. Safe to run again: anything that already exists is skipped.",
+  "source": "design-lore-systems: ds-011, ds-016, ds-018, ds-021, ds-029, ds-031, ds-032, ds-037, ds-039, nc-004, nc-006",
+  "steps": [
+    {
+      "do": "collection",
+      "name": "Primitives",
+      "modes": [
+        "Value"
+      ],
+      "variables": [
+        {
+          "name": "color/white",
+          "type": "COLOR",
+          "value": "#FFFFFF",
+          "scopes": []
+        },
+        {
+          "name": "color/black",
+          "type": "COLOR",
+          "value": "#000000",
+          "scopes": []
+        },
+        {
+          "name": "color/gray/50",
+          "type": "COLOR",
+          "value": "#F9FAFB",
+          "scopes": []
+        },
+        {
+          "name": "color/gray/100",
+          "type": "COLOR",
+          "value": "#F3F4F6",
+          "scopes": []
+        },
+        {
+          "name": "color/gray/200",
+          "type": "COLOR",
+          "value": "#E5E7EB",
+          "scopes": []
+        },
+        {
+          "name": "color/gray/300",
+          "type": "COLOR",
+          "value": "#D1D5DB",
+          "scopes": []
+        },
+        {
+          "name": "color/gray/400",
+          "type": "COLOR",
+          "value": "#9CA3AF",
+          "scopes": []
+        },
+        {
+          "name": "color/gray/500",
+          "type": "COLOR",
+          "value": "#6B7280",
+          "scopes": []
+        },
+        {
+          "name": "color/gray/600",
+          "type": "COLOR",
+          "value": "#4B5563",
+          "scopes": []
+        },
+        {
+          "name": "color/gray/700",
+          "type": "COLOR",
+          "value": "#374151",
+          "scopes": []
+        },
+        {
+          "name": "color/gray/800",
+          "type": "COLOR",
+          "value": "#1F2937",
+          "scopes": []
+        },
+        {
+          "name": "color/gray/900",
+          "type": "COLOR",
+          "value": "#111827",
+          "scopes": []
+        },
+        {
+          "name": "color/gray/950",
+          "type": "COLOR",
+          "value": "#030712",
+          "scopes": []
+        },
+        {
+          "name": "color/blue/50",
+          "type": "COLOR",
+          "value": "#EFF6FF",
+          "scopes": []
+        },
+        {
+          "name": "color/blue/100",
+          "type": "COLOR",
+          "value": "#DBEAFE",
+          "scopes": []
+        },
+        {
+          "name": "color/blue/200",
+          "type": "COLOR",
+          "value": "#BFDBFE",
+          "scopes": []
+        },
+        {
+          "name": "color/blue/300",
+          "type": "COLOR",
+          "value": "#93C5FD",
+          "scopes": []
+        },
+        {
+          "name": "color/blue/400",
+          "type": "COLOR",
+          "value": "#60A5FA",
+          "scopes": []
+        },
+        {
+          "name": "color/blue/500",
+          "type": "COLOR",
+          "value": "#3B82F6",
+          "scopes": []
+        },
+        {
+          "name": "color/blue/600",
+          "type": "COLOR",
+          "value": "#2563EB",
+          "scopes": []
+        },
+        {
+          "name": "color/blue/700",
+          "type": "COLOR",
+          "value": "#1D4ED8",
+          "scopes": []
+        },
+        {
+          "name": "color/blue/800",
+          "type": "COLOR",
+          "value": "#1E40AF",
+          "scopes": []
+        },
+        {
+          "name": "color/blue/900",
+          "type": "COLOR",
+          "value": "#1E3A8A",
+          "scopes": []
+        },
+        {
+          "name": "color/blue/950",
+          "type": "COLOR",
+          "value": "#172554",
+          "scopes": []
+        },
+        {
+          "name": "color/green/50",
+          "type": "COLOR",
+          "value": "#F0FDF4",
+          "scopes": []
+        },
+        {
+          "name": "color/green/100",
+          "type": "COLOR",
+          "value": "#DCFCE7",
+          "scopes": []
+        },
+        {
+          "name": "color/green/200",
+          "type": "COLOR",
+          "value": "#BBF7D0",
+          "scopes": []
+        },
+        {
+          "name": "color/green/300",
+          "type": "COLOR",
+          "value": "#86EFAC",
+          "scopes": []
+        },
+        {
+          "name": "color/green/400",
+          "type": "COLOR",
+          "value": "#4ADE80",
+          "scopes": []
+        },
+        {
+          "name": "color/green/500",
+          "type": "COLOR",
+          "value": "#22C55E",
+          "scopes": []
+        },
+        {
+          "name": "color/green/600",
+          "type": "COLOR",
+          "value": "#16A34A",
+          "scopes": []
+        },
+        {
+          "name": "color/green/700",
+          "type": "COLOR",
+          "value": "#15803D",
+          "scopes": []
+        },
+        {
+          "name": "color/green/800",
+          "type": "COLOR",
+          "value": "#166534",
+          "scopes": []
+        },
+        {
+          "name": "color/green/900",
+          "type": "COLOR",
+          "value": "#14532D",
+          "scopes": []
+        },
+        {
+          "name": "color/green/950",
+          "type": "COLOR",
+          "value": "#052E16",
+          "scopes": []
+        },
+        {
+          "name": "color/amber/50",
+          "type": "COLOR",
+          "value": "#FFFBEB",
+          "scopes": []
+        },
+        {
+          "name": "color/amber/100",
+          "type": "COLOR",
+          "value": "#FEF3C7",
+          "scopes": []
+        },
+        {
+          "name": "color/amber/200",
+          "type": "COLOR",
+          "value": "#FDE68A",
+          "scopes": []
+        },
+        {
+          "name": "color/amber/300",
+          "type": "COLOR",
+          "value": "#FCD34D",
+          "scopes": []
+        },
+        {
+          "name": "color/amber/400",
+          "type": "COLOR",
+          "value": "#FBBF24",
+          "scopes": []
+        },
+        {
+          "name": "color/amber/500",
+          "type": "COLOR",
+          "value": "#F59E0B",
+          "scopes": []
+        },
+        {
+          "name": "color/amber/600",
+          "type": "COLOR",
+          "value": "#D97706",
+          "scopes": []
+        },
+        {
+          "name": "color/amber/700",
+          "type": "COLOR",
+          "value": "#B45309",
+          "scopes": []
+        },
+        {
+          "name": "color/amber/800",
+          "type": "COLOR",
+          "value": "#92400E",
+          "scopes": []
+        },
+        {
+          "name": "color/amber/900",
+          "type": "COLOR",
+          "value": "#78350F",
+          "scopes": []
+        },
+        {
+          "name": "color/amber/950",
+          "type": "COLOR",
+          "value": "#451A03",
+          "scopes": []
+        },
+        {
+          "name": "color/red/50",
+          "type": "COLOR",
+          "value": "#FEF2F2",
+          "scopes": []
+        },
+        {
+          "name": "color/red/100",
+          "type": "COLOR",
+          "value": "#FEE2E2",
+          "scopes": []
+        },
+        {
+          "name": "color/red/200",
+          "type": "COLOR",
+          "value": "#FECACA",
+          "scopes": []
+        },
+        {
+          "name": "color/red/300",
+          "type": "COLOR",
+          "value": "#FCA5A5",
+          "scopes": []
+        },
+        {
+          "name": "color/red/400",
+          "type": "COLOR",
+          "value": "#F87171",
+          "scopes": []
+        },
+        {
+          "name": "color/red/500",
+          "type": "COLOR",
+          "value": "#EF4444",
+          "scopes": []
+        },
+        {
+          "name": "color/red/600",
+          "type": "COLOR",
+          "value": "#DC2626",
+          "scopes": []
+        },
+        {
+          "name": "color/red/700",
+          "type": "COLOR",
+          "value": "#B91C1C",
+          "scopes": []
+        },
+        {
+          "name": "color/red/800",
+          "type": "COLOR",
+          "value": "#991B1B",
+          "scopes": []
+        },
+        {
+          "name": "color/red/900",
+          "type": "COLOR",
+          "value": "#7F1D1D",
+          "scopes": []
+        },
+        {
+          "name": "color/red/950",
+          "type": "COLOR",
+          "value": "#450A0A",
+          "scopes": []
+        },
+        {
+          "name": "color/cyan/50",
+          "type": "COLOR",
+          "value": "#ECFEFF",
+          "scopes": []
+        },
+        {
+          "name": "color/cyan/100",
+          "type": "COLOR",
+          "value": "#CFFAFE",
+          "scopes": []
+        },
+        {
+          "name": "color/cyan/200",
+          "type": "COLOR",
+          "value": "#A5F3FC",
+          "scopes": []
+        },
+        {
+          "name": "color/cyan/300",
+          "type": "COLOR",
+          "value": "#67E8F9",
+          "scopes": []
+        },
+        {
+          "name": "color/cyan/400",
+          "type": "COLOR",
+          "value": "#22D3EE",
+          "scopes": []
+        },
+        {
+          "name": "color/cyan/500",
+          "type": "COLOR",
+          "value": "#06B6D4",
+          "scopes": []
+        },
+        {
+          "name": "color/cyan/600",
+          "type": "COLOR",
+          "value": "#0891B2",
+          "scopes": []
+        },
+        {
+          "name": "color/cyan/700",
+          "type": "COLOR",
+          "value": "#0E7490",
+          "scopes": []
+        },
+        {
+          "name": "color/cyan/800",
+          "type": "COLOR",
+          "value": "#155E75",
+          "scopes": []
+        },
+        {
+          "name": "color/cyan/900",
+          "type": "COLOR",
+          "value": "#164E63",
+          "scopes": []
+        },
+        {
+          "name": "color/cyan/950",
+          "type": "COLOR",
+          "value": "#083344",
+          "scopes": []
+        },
+        {
+          "name": "spacing/0",
+          "type": "FLOAT",
+          "value": 0,
+          "scopes": []
+        },
+        {
+          "name": "spacing/0.5",
+          "type": "FLOAT",
+          "value": 2,
+          "scopes": []
+        },
+        {
+          "name": "spacing/1",
+          "type": "FLOAT",
+          "value": 4,
+          "scopes": []
+        },
+        {
+          "name": "spacing/1.5",
+          "type": "FLOAT",
+          "value": 6,
+          "scopes": []
+        },
+        {
+          "name": "spacing/2",
+          "type": "FLOAT",
+          "value": 8,
+          "scopes": []
+        },
+        {
+          "name": "spacing/3",
+          "type": "FLOAT",
+          "value": 12,
+          "scopes": []
+        },
+        {
+          "name": "spacing/4",
+          "type": "FLOAT",
+          "value": 16,
+          "scopes": []
+        },
+        {
+          "name": "spacing/5",
+          "type": "FLOAT",
+          "value": 20,
+          "scopes": []
+        },
+        {
+          "name": "spacing/6",
+          "type": "FLOAT",
+          "value": 24,
+          "scopes": []
+        },
+        {
+          "name": "spacing/8",
+          "type": "FLOAT",
+          "value": 32,
+          "scopes": []
+        },
+        {
+          "name": "spacing/10",
+          "type": "FLOAT",
+          "value": 40,
+          "scopes": []
+        },
+        {
+          "name": "spacing/12",
+          "type": "FLOAT",
+          "value": 48,
+          "scopes": []
+        },
+        {
+          "name": "spacing/16",
+          "type": "FLOAT",
+          "value": 64,
+          "scopes": []
+        },
+        {
+          "name": "spacing/20",
+          "type": "FLOAT",
+          "value": 80,
+          "scopes": []
+        },
+        {
+          "name": "spacing/24",
+          "type": "FLOAT",
+          "value": 96,
+          "scopes": []
+        }
+      ]
+    },
+    {
+      "do": "collection",
+      "name": "Semantic",
+      "modes": [
+        "Light",
+        "Dark"
+      ],
+      "variables": [
+        {
+          "name": "color/surface/default",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/white}",
+            "Dark": "{color/gray/900}"
+          },
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "description": "Page and card background"
+        },
+        {
+          "name": "color/surface/subtle",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/gray/50}",
+            "Dark": "{color/gray/800}"
+          },
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "description": "Secondary areas, sidebars"
+        },
+        {
+          "name": "color/surface/muted",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/gray/100}",
+            "Dark": "{color/gray/700}"
+          },
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "description": "Wells, inputs, hover backgrounds"
+        },
+        {
+          "name": "color/text/primary",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/gray/900}",
+            "Dark": "{color/gray/50}"
+          },
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "description": "Headings and body text"
+        },
+        {
+          "name": "color/text/secondary",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/gray/600}",
+            "Dark": "{color/gray/400}"
+          },
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "description": "Supporting text"
+        },
+        {
+          "name": "color/text/disabled",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/gray/400}",
+            "Dark": "{color/gray/600}"
+          },
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "description": "Disabled text"
+        },
+        {
+          "name": "color/text/on-action",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/white}",
+            "Dark": "{color/white}"
+          },
+          "scopes": [
+            "TEXT_FILL"
+          ],
+          "description": "Text on primary action backgrounds"
+        },
+        {
+          "name": "color/border/default",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/gray/200}",
+            "Dark": "{color/gray/700}"
+          },
+          "scopes": [
+            "STROKE_COLOR"
+          ],
+          "description": "Default borders and dividers"
+        },
+        {
+          "name": "color/border/subtle",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/gray/100}",
+            "Dark": "{color/gray/800}"
+          },
+          "scopes": [
+            "STROKE_COLOR"
+          ],
+          "description": "Quiet dividers"
+        },
+        {
+          "name": "color/action/primary/default",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/blue/600}",
+            "Dark": "{color/blue/600}"
+          },
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "STROKE_COLOR"
+          ],
+          "description": "Primary buttons and links"
+        },
+        {
+          "name": "color/action/primary/hover",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/blue/700}",
+            "Dark": "{color/blue/700}"
+          },
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL",
+            "STROKE_COLOR"
+          ],
+          "description": "Primary hover"
+        },
+        {
+          "name": "color/feedback/success/default",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/green/600}",
+            "Dark": "{color/green/500}"
+          },
+          "scopes": [
+            "ALL_FILLS",
+            "STROKE_COLOR"
+          ],
+          "description": "Success icons, text and borders"
+        },
+        {
+          "name": "color/feedback/success/surface",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/green/50}",
+            "Dark": "{color/green/950}"
+          },
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "description": "Success message backgrounds"
+        },
+        {
+          "name": "color/feedback/warning/default",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/amber/600}",
+            "Dark": "{color/amber/500}"
+          },
+          "scopes": [
+            "ALL_FILLS",
+            "STROKE_COLOR"
+          ],
+          "description": "Warning icons, text and borders"
+        },
+        {
+          "name": "color/feedback/warning/surface",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/amber/50}",
+            "Dark": "{color/amber/950}"
+          },
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "description": "Warning message backgrounds"
+        },
+        {
+          "name": "color/feedback/danger/default",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/red/600}",
+            "Dark": "{color/red/500}"
+          },
+          "scopes": [
+            "ALL_FILLS",
+            "STROKE_COLOR"
+          ],
+          "description": "Danger icons, text and borders"
+        },
+        {
+          "name": "color/feedback/danger/surface",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/red/50}",
+            "Dark": "{color/red/950}"
+          },
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "description": "Danger message backgrounds"
+        },
+        {
+          "name": "color/feedback/info/default",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/cyan/600}",
+            "Dark": "{color/cyan/500}"
+          },
+          "scopes": [
+            "ALL_FILLS",
+            "STROKE_COLOR"
+          ],
+          "description": "Info icons, text and borders"
+        },
+        {
+          "name": "color/feedback/info/surface",
+          "type": "COLOR",
+          "values": {
+            "Light": "{color/cyan/50}",
+            "Dark": "{color/cyan/950}"
+          },
+          "scopes": [
+            "FRAME_FILL",
+            "SHAPE_FILL"
+          ],
+          "description": "Info message backgrounds"
+        }
+      ]
+    },
+    {
+      "do": "collection",
+      "name": "Dimensions",
+      "modes": [
+        "Value"
+      ],
+      "variables": [
+        {
+          "name": "spacing/xs",
+          "type": "FLOAT",
+          "value": "{spacing/1}",
+          "scopes": [
+            "GAP"
+          ]
+        },
+        {
+          "name": "spacing/sm",
+          "type": "FLOAT",
+          "value": "{spacing/2}",
+          "scopes": [
+            "GAP"
+          ]
+        },
+        {
+          "name": "spacing/md",
+          "type": "FLOAT",
+          "value": "{spacing/4}",
+          "scopes": [
+            "GAP"
+          ]
+        },
+        {
+          "name": "spacing/lg",
+          "type": "FLOAT",
+          "value": "{spacing/6}",
+          "scopes": [
+            "GAP"
+          ]
+        },
+        {
+          "name": "spacing/xl",
+          "type": "FLOAT",
+          "value": "{spacing/8}",
+          "scopes": [
+            "GAP"
+          ]
+        },
+        {
+          "name": "spacing/2xl",
+          "type": "FLOAT",
+          "value": "{spacing/12}",
+          "scopes": [
+            "GAP"
+          ]
+        },
+        {
+          "name": "spacing/3xl",
+          "type": "FLOAT",
+          "value": "{spacing/16}",
+          "scopes": [
+            "GAP"
+          ]
+        },
+        {
+          "name": "radius/none",
+          "type": "FLOAT",
+          "value": 0,
+          "scopes": [
+            "CORNER_RADIUS"
+          ]
+        },
+        {
+          "name": "radius/xs",
+          "type": "FLOAT",
+          "value": 2,
+          "scopes": [
+            "CORNER_RADIUS"
+          ]
+        },
+        {
+          "name": "radius/sm",
+          "type": "FLOAT",
+          "value": 4,
+          "scopes": [
+            "CORNER_RADIUS"
+          ]
+        },
+        {
+          "name": "radius/md",
+          "type": "FLOAT",
+          "value": 8,
+          "scopes": [
+            "CORNER_RADIUS"
+          ]
+        },
+        {
+          "name": "radius/lg",
+          "type": "FLOAT",
+          "value": 12,
+          "scopes": [
+            "CORNER_RADIUS"
+          ]
+        },
+        {
+          "name": "radius/xl",
+          "type": "FLOAT",
+          "value": 16,
+          "scopes": [
+            "CORNER_RADIUS"
+          ]
+        },
+        {
+          "name": "radius/2xl",
+          "type": "FLOAT",
+          "value": 24,
+          "scopes": [
+            "CORNER_RADIUS"
+          ]
+        },
+        {
+          "name": "radius/full",
+          "type": "FLOAT",
+          "value": 9999,
+          "scopes": [
+            "CORNER_RADIUS"
+          ]
+        }
+      ]
+    },
+    {
+      "do": "textStyles",
+      "styles": [
+        {
+          "name": "Display",
+          "font": "Inter/Bold",
+          "size": 48,
+          "lineHeight": 56,
+          "letterSpacing": "-2%"
+        },
+        {
+          "name": "Heading/H1",
+          "font": "Inter/Bold",
+          "size": 36,
+          "lineHeight": 44,
+          "letterSpacing": "-1%"
+        },
+        {
+          "name": "Heading/H2",
+          "font": "Inter/Bold",
+          "size": 30,
+          "lineHeight": 38,
+          "letterSpacing": "-1%"
+        },
+        {
+          "name": "Heading/H3",
+          "font": "Inter/Semi Bold",
+          "size": 24,
+          "lineHeight": 32
+        },
+        {
+          "name": "Heading/H4",
+          "font": "Inter/Semi Bold",
+          "size": 20,
+          "lineHeight": 28
+        },
+        {
+          "name": "Body/LG/Regular",
+          "font": "Inter/Regular",
+          "size": 18,
+          "lineHeight": 28
+        },
+        {
+          "name": "Body/MD/Regular",
+          "font": "Inter/Regular",
+          "size": 16,
+          "lineHeight": 24
+        },
+        {
+          "name": "Body/MD/SemiBold",
+          "font": "Inter/Semi Bold",
+          "size": 16,
+          "lineHeight": 24
+        },
+        {
+          "name": "Body/SM/Regular",
+          "font": "Inter/Regular",
+          "size": 14,
+          "lineHeight": 20
+        },
+        {
+          "name": "Caption/XS/Regular",
+          "font": "Inter/Regular",
+          "size": 12,
+          "lineHeight": 16
+        }
+      ]
+    },
+    {
+      "do": "effectStyles",
+      "styles": [
+        {
+          "name": "Shadow/Level-1",
+          "description": "Cards, tiles",
+          "shadows": [
+            {
+              "x": 0,
+              "y": 1,
+              "blur": 2,
+              "spread": 0,
+              "color": "#0000000D"
+            }
+          ]
+        },
+        {
+          "name": "Shadow/Level-2",
+          "description": "Dropdowns, popovers",
+          "shadows": [
+            {
+              "x": 0,
+              "y": 2,
+              "blur": 4,
+              "spread": 0,
+              "color": "#0000001A"
+            }
+          ]
+        },
+        {
+          "name": "Shadow/Level-3",
+          "description": "Sticky headers, floating buttons",
+          "shadows": [
+            {
+              "x": 0,
+              "y": 4,
+              "blur": 12,
+              "spread": 0,
+              "color": "#0000001F"
+            }
+          ]
+        },
+        {
+          "name": "Shadow/Level-4",
+          "description": "Modals, dialogs",
+          "shadows": [
+            {
+              "x": 0,
+              "y": 8,
+              "blur": 24,
+              "spread": 0,
+              "color": "#00000026"
+            }
+          ]
+        },
+        {
+          "name": "Shadow/Level-5",
+          "description": "Toasts, notifications",
+          "shadows": [
+            {
+              "x": 0,
+              "y": 16,
+              "blur": 48,
+              "spread": 0,
+              "color": "#00000033"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

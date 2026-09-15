@@ -95,6 +95,24 @@ buildSpec({ build: {
 - **Same name twice?** It's reported as `ambiguous:` instead of guessed. Prefix the collection or
   library: `"Semantic:color/primary"`. A variable in this file beats a library one with the same name.
 
+### Saved actions
+
+The **Actions** button in the plugin window opens a menu of saved actions, read
+live from the [`actions/`](actions/) folder on GitHub:
+
+- **Runs here** — a recipe the plugin applies itself. **Claude isn't involved, so it
+  uses no tokens.** For example, **Create DS foundation** sets up Primitives,
+  Semantic (Light/Dark) and Dimensions tokens, 10 text styles and 5 shadows in one click.
+- **For Claude** — a saved prompt. **Copy prompt**, paste it into Claude, done. For
+  example, **Build the DS page** builds specimens and core components on top of
+  the foundation.
+
+The **Activity** log lives at the bottom of the same menu. To add your own
+actions, see [actions/README.md](actions/README.md).
+
+> Cloud pairing is hidden in BetterBridge, and a stored pairing no longer
+> reconnects in the background. Claude and Figma on the same machine don't need it.
+
 ### The design-system line
 
 The plugin window shows what it found, under the connection status:
@@ -219,10 +237,13 @@ dumping their internals.
 | `unresolved: ["slot:…"]` | That slot name doesn't exist (the real ones are listed) | Use one of the listed names |
 | `unresolved: ["font:…"]` | Font isn't available; it fell back to Inter | Install the font, or use one you have |
 | `unresolved: ["mixedFont:…"]` | Text had mixed styling; it was changed, but that styling may be lost | Pass `font` or `textStyle` to choose one on purpose |
+| Actions menu: **Couldn't load saved actions: HTTP 404** | The branch in `BB_ACTIONS_BASE` (ui.html) hasn't been pushed, or was merged and deleted | Push the branch, or point `BB_ACTIONS_BASE` at `main` and re-import |
+| Actions menu: **Failed to fetch** | The plugin was imported before r4, so GitHub isn't in its allowed network domains | Re-import `manifest.json` |
+| Actions menu: an edit you pushed doesn't show up | GitHub serves raw files from a cache for a few minutes | Wait, then click ↻ |
 | Design-system line says **No design system found** but a library is enabled | The library publishes only styles/components, or it was enabled after the check | Click the line to re-check; list style-only libraries in the manifest |
 | `failed` on a `patchSpec` op | Usually a stale or wrong node id | Re-read the current ids |
 
-**Verify the plugin itself:** `node test-builder.js` — no dependencies, runs in a second, 81 assertions.
+**Verify the plugin itself:** `node test-builder.js` — no dependencies, runs in a second, 107 assertions.
 
 ---
 
@@ -257,13 +278,13 @@ The most useful number is your own. Measure it on your files.
 - **Works end to end.** Verified in Figma: create, edit in place, promote a component, and build
   from the registry (`reused: 3, built: 1`).
 - **Logic is covered by tests.** `test-builder.js` runs the real builder module against a mocked
-  Figma API — 81 assertions across create, registry resolution, variable binding, library tokens,
-  styles, strict mode, edit, delete, and failure handling. It also checks that `code.js` ships
-  the exact module the tests ran.
+  Figma API — 107 assertions across create, registry resolution, variable binding, library tokens,
+  styles, strict mode, edit, delete, failure handling, and saved-action recipes (including the
+  real recipes in `actions/`). It also checks that `code.js` ships the exact modules the tests ran.
 - **Not yet proven across real design systems.** The least-tested paths are **variant and
-  instance-swap properties**, **mixed-font text layers**, and **everything new in r3** —
-  library tokens, styles, strict mode, and the design-system line are tested against a mock
-  only and have not yet been run in real Figma. If you use those, that's the most
+  instance-swap properties**, **mixed-font text layers**, and **everything new in r3 and r4** —
+  library tokens, styles, strict mode, the design-system line, and saved actions are tested
+  against a mock only and have not yet been run in real Figma. If you use those, that's the most
   valuable thing you can report back.
 - **This is a fork you now maintain.** Upstream updates mean re-applying the changes below by hand.
 
@@ -277,8 +298,10 @@ The most useful number is your own. Measure it on your files.
 |---|---|
 | `code.js` | Added the builder module (`buildSpec`, `patchSpec`, `manifestSummary`, `setManifest`, `designSystem`) before `figma.ui.onmessage`; added the design-system status glue right after it (`BB_DS_STATUS`, strict mode in `clientStorage` under `bbStrict`); added `BUILD_SPEC` / `PATCH_SPEC` / `MANIFEST_SUMMARY` / `DESIGN_SYSTEM` / `BB_DS_REFRESH` / `BB_SET_STRICT` branches after `EXECUTE_CODE`; one line in the `documentchange` listener re-checks the design system on style changes |
 | `code.js` (upstream paths) | Fixed two `documentAccess: "dynamic-page"` violations inherited from upstream — `DEEP_GET_COMPONENT` and the `token-misuse` lint rule both used synchronous APIs that throw, inside swallowing `try`/`catch` blocks |
+| `code.js` (r4) | Added the recipe module (`runRecipe`) after the builder module, and a `BB_RUN_RECIPE` branch |
 | `ui.html` | Added `window.buildSpec` / `patchSpec` / `manifestSummary` / `designSystem`, matching `methodMap` entries, their `*_RESULT` cases (without them a direct command never resolved), and the design-system line with its "DS only" toggle |
-| `manifest.json` | Renamed to `BetterBridge`, id `betterbridge-mcp`. **Nothing else.** |
+| `ui.html` (r4) | Cloud icon and pairing rows hidden (`.bb-hidden`), and `CLOUD_CONFIG_RESTORED` no longer auto-dials (`BB_CLOUD_PAIRING = false`). The `+` button became **Actions**; the upstream sub-toolbar row now holds the saved-actions list, with Activity at the bottom. `BB_ACTIONS_BASE` sets the GitHub branch actions are read from |
+| `manifest.json` | Renamed to `BetterBridge`, id `betterbridge-mcp`. r4 adds `https://raw.githubusercontent.com` to both network domain lists, for saved actions |
 
 > ⚠️ **`PLUGIN_VERSION` in `code.js` must stay a plain `X.Y.Z`.** The server parses it with a
 > naive `split('.')` that returns `null` on anything longer, then falls back to string inequality
@@ -343,6 +366,8 @@ page. Returns `{ "Name": { nodeId, key, props? } }`.
 - `code.js`, `ui.html`, `manifest.json` — the plugin
 - `_builder-module.js` — the builder module in isolation (same content spliced into `code.js`;
   kept separate so it can be tested and re-diffed against a future upstream)
+- `_recipe-module.js` — the recipe runner, same arrangement
+- `actions/` — saved actions the plugin menu reads from GitHub
 - `test-builder.js` — mock-Figma test suite; `node test-builder.js`
 - `CLAUDE.md` — project rules that make Claude use this automatically
 - `extract-compact.js` — read-side token reduction, paste as the body of a `figma_execute` call

@@ -155,16 +155,20 @@ const figmaMock = {
 
 function hexToFigmaRGB(hex) {
   const h = hex.replace('#', '');
-  return {
+  if (!/^[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$/.test(h)) throw new Error('Invalid hex color: ' + hex);
+  const out = {
     r: parseInt(h.substr(0, 2), 16) / 255,
     g: parseInt(h.substr(2, 2), 16) / 255,
     b: parseInt(h.substr(4, 2), 16) / 255
   };
+  if (h.length === 8) out.a = parseInt(h.substr(6, 2), 16) / 255;
+  return out;
 }
 
 const sandbox = { figma: figmaMock, hexToFigmaRGB, console };
 vm.createContext(sandbox);
 vm.runInContext(fs.readFileSync('./_builder-module.js', 'utf8'), sandbox, { filename: '_builder-module.js' });
+vm.runInContext(fs.readFileSync('./_recipe-module.js', 'utf8'), sandbox, { filename: '_recipe-module.js' });
 const { buildSpec, patchSpec, manifestSummary, designSystem, setManifest } = sandbox;
 // Legacy sections 1-12 predate strict mode; they run with it off, and the
 // strict sections below switch it back on.
@@ -519,6 +523,127 @@ function ok(cond, label) {
     const code = fs.readFileSync('./code.js', 'utf8');
     const mod = fs.readFileSync('./_builder-module.js', 'utf8');
     ok(code.indexOf(mod.trim()) !== -1, 'code.js contains _builder-module.js verbatim');
+  }
+
+  // ==========================================================================
+  // r4: saved actions — recipes and the actions/ folder
+  // ==========================================================================
+  // Variable/style creation for the recipe runner. Added last so the builder
+  // sections above keep their fixed fixtures.
+  let collCounter = 0, varCounter = 0, styleCounter = 0;
+  figmaMock.variables.createVariableCollection = (name) => {
+    const c = { id: 'rc' + (++collCounter), name, modes: [{ modeId: 'm' + collCounter + '-0', name: 'Mode 1' }] };
+    c.renameMode = (id, n) => { c.modes.find(m => m.modeId === id).name = n; };
+    c.addMode = (n) => { const id = c.id + '-m' + c.modes.length; c.modes.push({ modeId: id, name: n }); return id; };
+    mockCollections.push(c);
+    return c;
+  };
+  figmaMock.variables.createVariable = (name, collection, type) => {
+    const v = { id: 'rv' + (++varCounter), name, resolvedType: type, variableCollectionId: collection.id, valuesByMode: {}, scopes: ['ALL_SCOPES'] };
+    v.setValueForMode = (modeId, value) => { v.valuesByMode[modeId] = value; };
+    mockVariables.push(v);
+    return v;
+  };
+  figmaMock.variables.createVariableAlias = (v) => ({ type: 'VARIABLE_ALIAS', id: v.id });
+  figmaMock.createTextStyle = () => { const st = { id: 'rts' + (++styleCounter), type: 'TEXT', name: '' }; mockStyles.TEXT.push(st); return st; };
+  figmaMock.createEffectStyle = () => { const st = { id: 'res' + (++styleCounter), type: 'EFFECT', name: '' }; mockStyles.EFFECT.push(st); return st; };
+  const { runRecipe } = sandbox;
+  // A fresh, empty file for the recipe sections.
+  mockVariables.length = 0;
+  mockCollections.length = 0;
+  mockStyles.PAINT.length = 0; mockStyles.TEXT.length = 0; mockStyles.EFFECT.length = 0;
+  const readJson = (f) => JSON.parse(fs.readFileSync(f, 'utf8'));
+
+  console.log('--- 27: the published DS foundation recipe runs cleanly ---');
+  {
+    const recipe = readJson('./actions/recipes/create-ds-foundation.json');
+    const r = await runRecipe(recipe);
+    ok(r.ok === true && !r.unresolved, 'no unresolved entries' + (r.unresolved ? ': ' + r.unresolved.slice(0, 3).join(' | ') : ''));
+    ok(r.created.collections === 3, 'three collections created (Primitives, Semantic, Dimensions)');
+    ok(r.created.variables === 117, '117 variables created');
+    ok(r.created.textStyles === 10 && r.created.effectStyles === 5, '10 text styles and 5 effect styles created');
+    const semantic = mockCollections.find(c => c.name === 'Semantic');
+    ok(semantic.modes.map(m => m.name).join() === 'Light,Dark', 'Semantic collection has Light and Dark modes');
+    const textPrimary = mockVariables.find(v => v.name === 'color/text/primary');
+    const gray900 = mockVariables.find(v => v.name === 'color/gray/900');
+    ok(textPrimary.valuesByMode[semantic.modes[0].modeId].id === gray900.id, 'semantic token aliases its primitive');
+    ok(mockVariables.find(v => v.name === 'color/gray/50').scopes.length === 0, 'primitives are hidden from pickers (no scopes)');
+    ok(mockVariables.find(v => v.name === 'spacing/md').scopes.join() === 'GAP', 'spacing tokens scoped to gap/padding');
+    const shadow = mockStyles.EFFECT.find(st => st.name === 'Shadow/Level-1');
+    ok(shadow && Math.abs(shadow.effects[0].color.a - 0.05) < 0.01, 'shadow colour keeps its alpha');
+  }
+
+  console.log('--- 28: running a recipe again changes nothing ---');
+  {
+    const before = mockVariables.length;
+    const r = await runRecipe(readJson('./actions/recipes/create-ds-foundation.json'));
+    ok(mockVariables.length === before && r.created.variables === 0 && r.skipped.variables === 117, 'existing variables skipped, not duplicated');
+    ok(r.created.collections === 0 && r.skipped.textStyles === 10 && r.skipped.effectStyles === 5, 'collections and styles reused');
+  }
+
+  console.log('--- 28b: an existing collection is never given new modes ---');
+  {
+    const theirs = figmaMock.variables.createVariableCollection('Brand');
+    const r = await runRecipe({ steps: [{ do: 'collection', name: 'Brand', modes: ['Light', 'Dark'], variables: [
+      { name: 'brand/primary', type: 'COLOR', values: { Light: '#2563EB', Dark: '#3B82F6' } }
+    ] }] });
+    ok(theirs.modes.length === 1, 'their collection keeps its own modes');
+    ok(r.unresolved && r.unresolved.some(u => u.indexOf('mode:Brand already exists without mode "Light"') === 0), 'the mismatch is reported');
+  }
+
+  console.log('--- 29: recipes report what they cannot do ---');
+  {
+    const r = await runRecipe({ steps: [
+      { do: 'deleteEverything' },
+      { do: 'collection', name: 'Broken', modes: ['Value'], variables: [
+        { name: 'a/missing-alias', type: 'COLOR', value: '{color/nope}' },
+        { name: 'a/bad-hex', type: 'COLOR', value: '#zzzzzz' },
+        { name: 'a/no-type', value: 1 },
+        { name: 'a/bad-scope', type: 'FLOAT', value: 4, scopes: ['GAP', 'EVERYWHERE'] }
+      ] }
+    ] });
+    const has29 = (p) => r.unresolved.some(u => u.indexOf(p) === 0);
+    ok(r.ok === false, 'result is not ok');
+    ok(has29('step:deleteEverything'), 'unknown step type refused (recipes are data, not code)');
+    ok(has29('alias:a/missing-alias'), 'missing alias target reported');
+    ok(has29('value:a/bad-hex'), 'bad hex reported');
+    ok(has29('variable:a/no-type'), 'variable without a type reported');
+    ok(has29('scopes:a/bad-scope'), 'unknown scope reported');
+  }
+
+  console.log('--- 30: builder resolves the recipe\'s tokens and styles ---');
+  {
+    sandbox.__bbSetStrict(true);
+    mockLibrary.collections = []; mockLibrary.variables = {};
+    await designSystem({ refresh: true });
+    const r = await buildSpec({ build: {
+      type: 'frame', name: 'FromRecipe', layout: 'col', gap: 'spacing/md', pad: 'spacing/lg', radius: 'radius/lg',
+      fill: 'color/surface/default', effect: 'Shadow/Level-1',
+      children: [{ type: 'text', text: 'Hello', textStyle: 'Heading/H3', fill: 'color/text/primary' }]
+    } });
+    ok(!r.unresolved, 'a strict build using only recipe names has nothing unresolved' + (r.unresolved ? ': ' + r.unresolved.join(' | ') : ''));
+    sandbox.__bbSetStrict(false);
+  }
+
+  console.log('--- 31: actions/index.json points at real, well-formed files ---');
+  {
+    const index = readJson('./actions/index.json');
+    const FILE = /^(recipes\/[A-Za-z0-9._-]+\.json|prompts\/[A-Za-z0-9._-]+\.md)$/;
+    ok(Array.isArray(index.actions) && index.actions.length > 0, 'index lists actions');
+    for (const a of index.actions) {
+      const exists = FILE.test(a.file) && fs.existsSync('./actions/' + a.file);
+      const kindOk = (a.kind === 'recipe' && a.file.endsWith('.json')) || (a.kind === 'prompt' && a.file.endsWith('.md'));
+      ok(a.id && a.title && a.description && exists && kindOk, 'action "' + a.id + '" is complete and its file exists');
+      if (a.kind === 'recipe') ok(Array.isArray(readJson('./actions/' + a.file).steps), 'recipe "' + a.id + '" parses');
+    }
+    const ui = fs.readFileSync('./ui.html', 'utf8');
+    ok(ui.indexOf(FILE.source.replace(/\\/g, '\\\\')) !== -1 || ui.indexOf("recipes\\/[A-Za-z0-9._-]+\\.json") !== -1, 'ui.html uses the same file-name rule');
+  }
+
+  console.log('--- 32: code.js ships the recipe module the tests ran ---');
+  {
+    const code = fs.readFileSync('./code.js', 'utf8');
+    ok(code.indexOf(fs.readFileSync('./_recipe-module.js', 'utf8').trim()) !== -1, 'code.js contains _recipe-module.js verbatim');
   }
 
   console.log('\n' + pass + ' passed, ' + fail + ' failed');

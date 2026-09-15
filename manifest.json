@@ -43,9 +43,10 @@
       "ws://localhost:9231",
       "ws://localhost:9232",
       "wss://figma-console-mcp.southleft.com",
-      "https://figma-console-mcp.southleft.com"
+      "https://figma-console-mcp.southleft.com",
+      "https://raw.githubusercontent.com"
     ],
-    "reasoning": "Connects to local MCP server via WebSocket (port range 9223-9232 for multi-instance), and optionally to the cloud relay for remote write access.",
+    "reasoning": "Connects to local MCP server via WebSocket (port range 9223-9232 for multi-instance), optionally to the cloud relay for remote write access, and reads BetterBridge saved actions (JSON recipes and text prompts) from the project's GitHub repository.",
     "devAllowedDomains": [
       "http://localhost",
       "http://localhost:9223",
@@ -70,7 +71,8 @@
       "ws://localhost:9231",
       "ws://localhost:9232",
       "wss://figma-console-mcp.southleft.com",
-      "https://figma-console-mcp.southleft.com"
+      "https://figma-console-mcp.southleft.com",
+      "https://raw.githubusercontent.com"
     ]
   }
 }

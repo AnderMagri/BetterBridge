@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "actions": [
+    {
+      "id": "create-ds-foundation",
+      "kind": "recipe",
+      "title": "Create DS foundation",
+      "description": "Creates color, spacing and radius tokens (Light/Dark), 10 text styles and 5 shadows. Runs inside Figma, so Claude isn't involved and no tokens are used. Safe to run again.",
+      "file": "recipes/create-ds-foundation.json"
+    },
+    {
+      "id": "create-ds",
+      "kind": "prompt",
+      "title": "Build the DS page",
+      "description": "Copies a prompt for Claude that builds the specimen page and core components (Button, Input, Card) on top of the foundation. Paste it into Claude.",
+      "file": "prompts/create-ds.md"
+    }
+  ]
+}

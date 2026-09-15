@@ -199,9 +199,20 @@
 
     /* Expand [+] / [−] glyph is text, not SVG. Bump to match visual weight of SVG siblings. */
     #expand-btn {
-      font-size: 18px;
-      font-weight: 400;
-      line-height: 1;
+      font-size: 10px; /* BetterBridge: now the "Actions" text button */
+      font-weight: 500;
+      line-height: 1.4;
+    }
+
+    #expand-btn.active {
+      color: var(--figma-color-bg-brand, #0d99ff);
+      border-color: var(--figma-color-bg-brand, #0d99ff);
+    }
+
+    /* BetterBridge: cloud pairing is hidden. Its code stays (smaller diff
+       against upstream), but nothing can show it or auto-dial the relay. */
+    .bb-hidden {
+      display: none !important;
     }
 
     .icon-btn.active,
@@ -500,6 +511,128 @@
       display: none;
     }
 
+    /* ===== BetterBridge: Actions panel (replaces the [+] sub-toolbar) ===== */
+    .sub-toolbar.actions-panel {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 4px;
+      padding: 6px 0 2px 4px;
+      border-top: 1px solid var(--figma-color-border, #4a4a4a);
+    }
+
+    .actions-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      color: var(--figma-color-text-secondary, rgba(255, 255, 255, 0.5));
+    }
+
+    .actions-head .icon-btn {
+      width: 20px;
+      height: 20px;
+    }
+
+    .actions-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .actions-note {
+      font-size: 10px;
+      line-height: 1.4;
+      color: var(--figma-color-text-secondary, rgba(255, 255, 255, 0.6));
+      white-space: normal;
+    }
+
+    .actions-note.error {
+      color: var(--color-error);
+    }
+
+    .action-title {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 3px;
+      padding: 4px;
+      font-family: inherit;
+      font-size: 11px;
+      color: var(--figma-color-text, rgba(255, 255, 255, 0.9));
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .action-title:hover,
+    .action-title[aria-expanded="true"] {
+      background: var(--figma-color-bg-secondary, #383838);
+    }
+
+    .action-name {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .action-kind {
+      flex-shrink: 0;
+      font-size: 9px;
+      padding: 0 4px;
+      border-radius: 2px;
+      border: 1px solid var(--figma-color-border, #4a4a4a);
+      color: var(--figma-color-text-secondary, rgba(255, 255, 255, 0.6));
+    }
+
+    .action-kind.recipe {
+      color: var(--figma-color-bg-brand, #0d99ff);
+      border-color: var(--figma-color-bg-brand, #0d99ff);
+    }
+
+    .action-body {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      padding: 2px 4px 6px 4px;
+    }
+
+    .action-body.open {
+      display: flex;
+    }
+
+    .action-go {
+      align-self: flex-start;
+      background: var(--figma-color-bg-brand, #0d99ff);
+      color: #fff;
+      border: none;
+      border-radius: 3px;
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 500;
+      padding: 4px 10px;
+      cursor: pointer;
+    }
+
+    .action-go:disabled {
+      opacity: 0.5;
+      cursor: default;
+    }
+
+    .actions-foot {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-top: 4px;
+      border-top: 1px solid var(--figma-color-border, #4a4a4a);
+    }
+
     /* ===== Light theme ===== */
     /* Theme manual override redefines the Figma-injected vars so all token
        consumers cascade automatically. When no data-theme attribute is set,
@@ -548,12 +681,12 @@
       </div>
       <!-- CTA starts hidden; the first state reconcile shows it with an honest label -->
       <button class="cta-btn" id="cta-btn" onclick="toggleLocalConnection()" style="display:none">Pause</button>
-      <button class="icon-btn" id="cloud-icon" onclick="toggleCloudPair()" title="Cloud pairing" aria-label="Cloud pairing" aria-expanded="false">
+      <button class="icon-btn bb-hidden" id="cloud-icon" onclick="toggleCloudPair()" title="Cloud pairing" aria-label="Cloud pairing" aria-expanded="false">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
           <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
         </svg>
       </button>
-      <button class="icon-btn" id="expand-btn" onclick="toggleSubToolbar()" title="Show options" aria-label="Show options" aria-expanded="false">+</button>
+      <button class="cta-btn" id="expand-btn" onclick="toggleSubToolbar()" title="Saved actions and activity log" aria-expanded="false" aria-controls="sub-toolbar">Actions</button>
     </div>
 
     <!-- Status meta — connection count + proof of life (shown when connected) -->
@@ -582,7 +715,7 @@
     </div>
 
     <!-- Cloud pairing (shown when cloud icon active) -->
-    <div class="row cloud-pair" id="cloud-pair">
+    <div class="row cloud-pair bb-hidden" id="cloud-pair">
       <button class="icon-btn icon-btn--borderless cloud-info-btn" id="cloud-info-btn" onclick="toggleCloudHelp()" title="About pairing codes" aria-label="About pairing codes" aria-expanded="false" aria-controls="cloud-help">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
           <circle cx="12" cy="12" r="10"/>
@@ -593,14 +726,26 @@
       <input type="text" id="cloud-code" maxlength="6" placeholder="Pairing code" autocomplete="off" aria-label="Cloud pairing code" />
       <button id="cloud-btn" onclick="cloudConnect()">Connect</button>
     </div>
-    <div class="row cloud-help" id="cloud-help" role="region" aria-label="About pairing codes">
+    <div class="row cloud-help bb-hidden" id="cloud-help" role="region" aria-label="About pairing codes">
       <p>Use this when Claude is on a different device from Figma.</p>
       <p>Generate a 6-char code in Claude and paste it here.</p>
     </div>
-    <div class="cloud-status" id="cloud-status"></div>
+    <div class="cloud-status bb-hidden" id="cloud-status"></div>
 
-    <!-- Sub-toolbar (shown when [+] active) -->
-    <div class="row sub-toolbar" id="sub-toolbar">
+    <!-- BetterBridge: Actions panel (shown when "Actions" is active). Reuses the
+         upstream sub-toolbar row so its open/close plumbing keeps working. -->
+    <div class="row sub-toolbar actions-panel" id="sub-toolbar">
+      <div class="actions-head">
+        <span>Saved actions</span>
+        <button class="icon-btn icon-btn--borderless" id="actions-reload" onclick="loadActions(true)" title="Reload from GitHub" aria-label="Reload saved actions from GitHub">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <polyline points="23 4 23 10 17 10"/>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+          </svg>
+        </button>
+      </div>
+      <div class="actions-list" id="actions-list" role="list"></div>
+      <div class="actions-foot">
       <button class="sub-btn" id="log-toggle" onclick="toggleLog()" aria-expanded="false" aria-controls="log-panel">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -614,6 +759,7 @@
           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
         </svg>
       </button>
+      </div>
     </div>
 
     <!-- Activity panel (shown when Activity active) -->
@@ -1950,7 +2096,7 @@
       var opening = !document.getElementById('sub-toolbar').classList.contains('visible');
       if (opening) closeCloudPairIfOpen();
       var nowOpen = toggleRow('sub-toolbar', 'expand-btn');
-      document.getElementById('expand-btn').textContent = nowOpen ? '−' : '+';
+      if (nowOpen && !_bbActions.index && !_bbActions.loading) loadActions(false);
       if (!nowOpen) {
         // Collapse the Activity panel if sub-toolbar closes
         var log = document.getElementById('log-panel');
@@ -2585,6 +2731,183 @@
       parent.postMessage({ pluginMessage: { type: 'BB_SET_STRICT', value: !_dsStrict } }, '*');
     }
 
+    // ============================================================================
+    // BETTERBRIDGE: saved actions (actions/ folder on GitHub)
+    // Recipes are JSON the plugin applies itself (no Claude, no tokens).
+    // Prompts are text for Claude; the menu copies them to paste into a chat.
+    // Everything fetched is treated as untrusted data: rendered with
+    // textContent, and recipes can only use runRecipe's fixed step types.
+    // ============================================================================
+    var BB_CLOUD_PAIRING = false;
+    // Branch the actions are read from. Switch to 'main' when this branch merges.
+    var BB_ACTIONS_BASE = 'https://raw.githubusercontent.com/AnderMagri/BetterBridge/betterbridge-r4/actions/';
+    var BB_ACTION_FILE = /^(recipes\/[A-Za-z0-9._-]+\.json|prompts\/[A-Za-z0-9._-]+\.md)$/;
+    var _bbActions = { index: null, loading: false, running: null };
+
+    function bbFetch(file) {
+      return fetch(BB_ACTIONS_BASE + file + '?t=' + Date.now(), { cache: 'no-store' }).then(function(res) {
+        if (!res.ok) throw new Error(file + ': HTTP ' + res.status);
+        return file.slice(-5) === '.json' ? res.json() : res.text();
+      });
+    }
+
+    function actionsNote(text, isError) {
+      var list = document.getElementById('actions-list');
+      list.textContent = '';
+      var p = document.createElement('div');
+      p.className = 'actions-note' + (isError ? ' error' : '');
+      p.textContent = text;
+      list.appendChild(p);
+      autoResize();
+    }
+
+    function loadActions(force) {
+      if (_bbActions.loading) return;
+      if (_bbActions.index && !force) { renderActions(); return; }
+      _bbActions.loading = true;
+      actionsNote('Loading from GitHub…');
+      bbFetch('index.json').then(function(index) {
+        if (!index || !Array.isArray(index.actions)) throw new Error('index.json has no "actions" list');
+        _bbActions.index = index.actions.filter(function(a) {
+          return a && a.id && a.title && (a.kind === 'recipe' || a.kind === 'prompt') && BB_ACTION_FILE.test(a.file || '');
+        });
+        renderActions();
+      }).catch(function(err) {
+        actionsNote("Couldn't load saved actions: " + (err && err.message ? err.message : err), true);
+      }).then(function() {
+        _bbActions.loading = false;
+      });
+    }
+
+    function renderActions() {
+      var list = document.getElementById('actions-list');
+      list.textContent = '';
+      if (!_bbActions.index.length) { actionsNote('No saved actions yet.'); return; }
+      _bbActions.index.forEach(function(action) {
+        var item = document.createElement('div');
+        item.setAttribute('role', 'listitem');
+
+        var title = document.createElement('button');
+        title.className = 'action-title';
+        title.setAttribute('aria-expanded', 'false');
+        var name = document.createElement('span');
+        name.className = 'action-name';
+        name.textContent = action.title;
+        var kind = document.createElement('span');
+        kind.className = 'action-kind ' + action.kind;
+        kind.textContent = action.kind === 'recipe' ? 'Runs here' : 'For Claude';
+        kind.title = action.kind === 'recipe'
+          ? 'Runs inside Figma. Claude is not involved and no tokens are used.'
+          : 'A saved prompt. Copy it and paste it into Claude.';
+        title.appendChild(name);
+        title.appendChild(kind);
+
+        var body = document.createElement('div');
+        body.className = 'action-body';
+        body.id = 'action-body-' + action.id;
+        title.setAttribute('aria-controls', body.id);
+        var desc = document.createElement('div');
+        desc.className = 'actions-note';
+        desc.textContent = action.description || '';
+        var go = document.createElement('button');
+        go.className = 'action-go';
+        go.textContent = action.kind === 'recipe' ? 'Run in Figma' : 'Copy prompt';
+        var status = document.createElement('div');
+        status.className = 'actions-note';
+        status.setAttribute('role', 'status');
+        status.setAttribute('aria-live', 'polite');
+        go.onclick = function() {
+          if (action.kind === 'recipe') runAction(action, go, status);
+          else copyPromptAction(action, status);
+        };
+        body.appendChild(desc);
+        body.appendChild(go);
+        body.appendChild(status);
+
+        title.onclick = function() {
+          var open = !body.classList.contains('open');
+          body.classList.toggle('open', open);
+          title.setAttribute('aria-expanded', open ? 'true' : 'false');
+          autoResize();
+        };
+
+        item.appendChild(title);
+        item.appendChild(body);
+        list.appendChild(item);
+      });
+      autoResize();
+    }
+
+    function setActionStatus(status, text, isError) {
+      status.textContent = text;
+      status.className = 'actions-note' + (isError ? ' error' : '');
+      autoResize();
+    }
+
+    function runAction(action, button, status) {
+      if (_bbActions.running) return;
+      button.disabled = true;
+      setActionStatus(status, 'Loading recipe…');
+      bbFetch(action.file).then(function(recipe) {
+        _bbActions.running = { id: action.id, button: button, status: status, title: action.title };
+        setActionStatus(status, 'Running…');
+        logWithHistory('Action: ' + action.title, 'info');
+        parent.postMessage({ pluginMessage: { type: 'BB_RUN_RECIPE', actionId: action.id, recipe: recipe } }, '*');
+      }).catch(function(err) {
+        button.disabled = false;
+        setActionStatus(status, "Couldn't load it: " + (err && err.message ? err.message : err), true);
+      });
+    }
+
+    function onRecipeResult(msg) {
+      var run = _bbActions.running;
+      if (!run || run.id !== msg.actionId) return;
+      _bbActions.running = null;
+      run.button.disabled = false;
+      if (!msg.success) {
+        setActionStatus(run.status, 'Failed: ' + msg.error, true);
+        logWithHistory(run.title + ' failed: ' + msg.error, 'error');
+        return;
+      }
+      var r = msg.result || {};
+      var c = r.created || {}, k = r.skipped || {};
+      var made = [];
+      if (c.variables) made.push(plural(c.variables, 'variable'));
+      if (c.textStyles) made.push(plural(c.textStyles, 'text style'));
+      if (c.effectStyles) made.push(plural(c.effectStyles, 'effect style'));
+      var skippedCount = (k.variables || 0) + (k.textStyles || 0) + (k.effectStyles || 0);
+      var text = made.length ? 'Created ' + made.join(', ') + '.' : 'Nothing new to create.';
+      if (skippedCount) text += ' ' + skippedCount + ' already existed.';
+      var problems = r.unresolved || [];
+      if (problems.length) {
+        text += ' ' + plural(problems.length, 'problem') + ', listed in Activity.';
+        problems.forEach(function(p) { logWithHistory(run.title + ': ' + p, 'warn'); });
+      }
+      setActionStatus(run.status, text, problems.length > 0);
+      logWithHistory(run.title + ': ' + text, problems.length ? 'warn' : 'success');
+    }
+
+    function copyPromptAction(action, status) {
+      setActionStatus(status, 'Loading prompt…');
+      bbFetch(action.file).then(function(text) {
+        // Drop the front matter (id/title/description): it's for the menu, not Claude.
+        var prompt = String(text).replace(/^---\n[\s\S]*?\n---\n+/, '');
+        var ta = document.createElement('textarea');
+        ta.value = prompt;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) {}
+        document.body.removeChild(ta);
+        if (ok) setActionStatus(status, 'Copied. Paste it into Claude.');
+        else setActionStatus(status, 'Copy failed. Open actions/' + action.file + ' on GitHub instead.', true);
+      }).catch(function(err) {
+        setActionStatus(status, "Couldn't load it: " + (err && err.message ? err.message : err), true);
+      });
+    }
+
     // Ask once on load, including after RELOAD_UI rebuilds this iframe.
     parent.postMessage({ pluginMessage: { type: 'BB_DS_REFRESH', refresh: false } }, '*');
 
@@ -2678,6 +3001,9 @@
           break;
         case 'BB_DS_STATUS':
           renderDesignSystem(msg.data || {});
+          break;
+        case 'BB_RECIPE_RESULT':
+          onRecipeResult(msg);
           break;
         case 'UPDATE_VARIABLE_RESULT':
           handleResult('UPDATE_VARIABLE', 'variable');
@@ -2896,7 +3222,9 @@
         // Cloud config restored from clientStorage by code.js — auto-fill the
         // pairing input and reconnect without making the user re-pair.
         case 'CLOUD_CONFIG_RESTORED':
-          if (msg.config && msg.config.code && !_cloudUserDisconnected) {
+          // BetterBridge: cloud pairing is hidden, so never reconnect to the
+          // relay in the background from a previously stored code.
+          if (BB_CLOUD_PAIRING && msg.config && msg.config.code && !_cloudUserDisconnected) {
             var restoredCode = String(msg.config.code).trim().toUpperCase();
             var restoredInput = document.getElementById('cloud-code');
             if (restoredInput) restoredInput.value = restoredCode;
