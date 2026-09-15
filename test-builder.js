@@ -25,7 +25,18 @@ function baseNode(type, opts) {
     strokeWeight: 0,
     cornerRadius: 0,
     boundVariables: {},
-    appendChild(child) { child.parent = this; this.children.push(child); nodeIndex.set(child.id, child); },
+    appendChild(child) {
+      if (child.parent) { const i = child.parent.children.indexOf(child); if (i !== -1) child.parent.children.splice(i, 1); }
+      child.parent = this; this.children.push(child); nodeIndex.set(child.id, child);
+    },
+    findOne(fn) {
+      for (const c of this.children) {
+        if (fn(c)) return c;
+        const deep = c.findOne ? c.findOne(fn) : null;
+        if (deep) return deep;
+      }
+      return null;
+    },
     resize(w, h) { this.width = w; this.height = h; },
     setBoundVariable(field, variable) { this.boundVariables[field] = variable.id; this[field] = variable.mockValue; },
     findAllWithCriteria(crit) {
@@ -75,7 +86,12 @@ function makeText(opts) {
 }
 
 function makeComponent(opts) {
-  const n = baseNode('COMPONENT', opts);
+  return addComponentBehavior(baseNode('COMPONENT', opts), opts);
+}
+
+function addComponentBehavior(n, opts) {
+  opts = opts || {};
+  n.type = 'COMPONENT';
   n.key = opts.key || null;
   n.componentPropertyDefinitions = opts.componentPropertyDefinitions || {};
   n.createInstance = function () {
@@ -532,7 +548,7 @@ function ok(cond, label) {
   {
     const { iconSummary, findIcons } = sandbox;
     let r0 = await buildSpec({ build: { icon: 'arrow-right' } }).catch(e => ({ error: e.message }));
-    ok(r0.error && r0.error.indexOf('no icon set connected') !== -1, 'without a connected set, the miss says how to connect one');
+    ok(r0.error && r0.error.indexOf('no icon set for this file') !== -1, 'without a connected set, the miss says how to pick or connect one');
 
     // An icon library file: an "Icons" page plus an Icon/ component elsewhere.
     const iconsPage = baseNode('PAGE', { name: '🔣 Icons' });
@@ -556,7 +572,7 @@ function ok(cond, label) {
     ok(summary.icons['Star'] && !summary.icons['Button/Primary'], '"Icon/" prefix stripped; ordinary components ignored');
 
     sandbox.__bbSetIconSource(summary);
-    const found = findIcons('chev');
+    const found = await findIcons('chev');
     ok(found.connected && found.icons.length === 1 && found.icons[0] === 'Chevron' && found.total === 3, 'findIcons searches without returning the whole set');
 
     libraryComponentSets['ik-chevron'] = chevSet;
@@ -578,9 +594,37 @@ function ok(cond, label) {
     const ds = await designSystem();
     ok(ds.icons.connected && ds.icons.name === 'Acme Icons' && ds.icons.count === 3, 'designSystem() reports the icon source');
     sandbox.__bbSetIconSource(null);
-    ok((await designSystem()).icons.connected === false && findIcons('x').connected === false, 'disconnecting clears it');
+    ok((await designSystem()).icons.connected === false && (await findIcons('x')).connected === false, 'disconnecting clears it');
     figmaMock.importComponentByKeyAsync = async () => { throw new Error('no library in mock'); };
     figmaMock.fileKey = undefined;
+  }
+
+  console.log('--- 26c: library icons already used on the page work without connecting ---');
+  {
+    const { findIcons } = sandbox;
+    const libSet = baseNode('COMPONENT_SET', { name: 'Icon/Home' });
+    const libVariant = makeComponent({ name: 'Size=24' });
+    libSet.appendChild(libVariant);
+    libSet.defaultVariant = libVariant;
+    libraryComponentSets['k-home-set'] = libSet;
+
+    const placed = baseNode('INSTANCE', { name: 'Icon/Home', width: 24, height: 24 });
+    placed.getMainComponentAsync = async () => ({ remote: true, name: 'Size=24', key: 'k-home-24', parent: { type: 'COMPONENT_SET', name: 'Icon/Home', key: 'k-home-set' } });
+    const avatar = baseNode('INSTANCE', { name: 'Avatar', width: 32, height: 32 });
+    avatar.getMainComponentAsync = async () => ({ remote: true, name: 'Avatar', key: 'k-avatar', parent: null });
+    const localIcon = baseNode('INSTANCE', { name: 'Icon/Local', width: 24, height: 24 });
+    localIcon.getMainComponentAsync = async () => ({ remote: false, name: 'Icon/Local', key: 'k-local', parent: null });
+    currentPage.appendChild(placed); currentPage.appendChild(avatar); currentPage.appendChild(localIcon);
+
+    const ds = await designSystem();
+    ok(ds.icons.connected === false && ds.icons.usedOnPage === 1, 'one library icon detected (avatar and local icon ignored)');
+    ok(sandbox.__bbDetectedIconKeys().indexOf('k-home-set') !== -1, 'detected keys exposed for auto-picking a saved set');
+    const found = await findIcons('ho');
+    ok(found.connected === false && found.icons[0] === 'Home', 'findIcons falls back to icons used on the page');
+    const r = await buildSpec({ build: { type: 'frame', name: 'UsesDetected', layout: 'row', children: [{ icon: 'home' }] } });
+    ok(!r.unresolved && nodeIndex.get(r.id).children[0].type === 'INSTANCE', 'a detected library icon can be placed by name');
+    [placed, avatar, localIcon].forEach(n => n.remove());
+    await designSystem();
   }
 
   // ==========================================================================
@@ -683,19 +727,75 @@ function ok(cond, label) {
     sandbox.__bbSetStrict(false);
   }
 
-  console.log('--- 31: actions/index.json points at real, well-formed files ---');
+  console.log('--- 30b: the DS page recipe builds pages, specimens and components ---');
+  {
+    let pageCount = 0, propCounter = 0;
+    figmaMock.createPage = () => { const pg = baseNode('PAGE', { name: 'Page ' + (++pageCount + 1) }); pg.selection = []; rootDoc.children.push(pg); return pg; };
+    figmaMock.setCurrentPageAsync = async (pg) => { figmaMock.currentPage = pg; };
+    figmaMock.createSection = () => {
+      const sec = baseNode('SECTION', {});
+      sec.resizeWithoutConstraints = function (w, h) { this.width = w; this.height = h; };
+      figmaMock.currentPage.appendChild(sec);
+      return sec;
+    };
+    figmaMock.createComponentFromNode = (n) => addComponentBehavior(n, {});
+    figmaMock.combineAsVariants = (nodes, parentNode) => {
+      const set = baseNode('COMPONENT_SET', {});
+      set.componentPropertyDefinitions = {};
+      nodes.forEach(n => set.appendChild(n));
+      parentNode.appendChild(set);
+      set.defaultVariant = nodes[0];
+      set.addComponentProperty = (name, type, def) => { const key = name + '#9:' + (++propCounter); set.componentPropertyDefinitions[key] = { type, defaultValue: def }; return key; };
+      return set;
+    };
+    const pageRecipe = readJson('./actions/recipes/create-ds-page.json');
+
+    // Without the foundation, the recipe stops instead of drawing half a page.
+    const savedCollections = mockCollections.splice(0, mockCollections.length);
+    const stopped = await runRecipe(pageRecipe);
+    mockCollections.push(...savedCollections);
+    ok(stopped.stopped === true && stopped.created.pages === 0 && stopped.unresolved[0].indexOf('Create DS foundation') !== -1, 'stops with "run the foundation first" when it is missing');
+
+    sandbox.__bbSetStrict(true);
+    const r = await runRecipe(pageRecipe);
+    ok(r.ok === true && !r.unresolved, 'runs cleanly in strict mode' + (r.unresolved ? ': ' + r.unresolved.slice(0, 4).join(' | ') : ''));
+    ok(r.created.pages === 1 && r.created.sections === 5, 'Design System page with 5 sections');
+    ok(r.created.components === 3 && r.created.nodes === 2, 'Button and Input sets, Card component, swatches and specimens');
+    const dsPage = rootDoc.children.find(pg => pg.name === 'Design System');
+    ok(figmaMock.currentPage === dsPage, 'the page is opened');
+    const section = (name) => dsPage.children.find(c => c.type === 'SECTION' && c.name === name);
+    const button = section('Buttons').children.find(c => c.name === 'Button');
+    ok(button && button.type === 'COMPONENT_SET' && button.children.length === 6, 'Button set has 6 variants');
+    ok(button.children[0].name === 'Variant=Primary, State=Default', 'variants named Property=Value');
+    const labelKey = Object.keys(button.componentPropertyDefinitions).find(k => k.indexOf('Label#') === 0);
+    ok(labelKey && button.children.every(v => v.findOne(n => n.name === 'Label').componentPropertyReferences.characters === labelKey), 'every variant label is bound to one Label property');
+    const card = section('Cards').children.find(c => c.name === 'Card');
+    ok(card && card.type === 'COMPONENT' && card.findOne(n => n.type === 'INSTANCE'), 'Card is a component containing a Button instance');
+    const swatches = section('Colors').children[0];
+    const swatchCount = []; (function walk(n) { n.children.forEach(ch => { if (ch.name === 'Swatch') swatchCount.push(ch); walk(ch); }); })(swatches);
+    ok(swatchCount.length === 19 && swatchCount.every(sw => sw.fills[0] && sw.fills[0].boundVariable), 'one bound swatch per Semantic color token');
+    // The mock doesn't run auto layout, so only the minimum size is checkable here.
+    ok(section('Colors').width >= 480 && section('Colors').children[0].x === 64 && section('Buttons').x > section('Typography').x, 'section contents padded and sections laid out left to right');
+
+    const again = await runRecipe(pageRecipe);
+    const createdAgain = Object.values(again.created).reduce((a, b) => a + b, 0);
+    ok(createdAgain === 0 && again.skipped.sections === 5 && again.skipped.nodes === 5, 'running it again creates nothing');
+    sandbox.__bbSetStrict(false);
+  }
+
+  console.log('--- 31: actions/index.json points at real recipes ---');
   {
     const index = readJson('./actions/index.json');
-    const FILE = /^(recipes\/[A-Za-z0-9._-]+\.json|prompts\/[A-Za-z0-9._-]+\.md)$/;
+    const FILE = /^recipes\/[A-Za-z0-9._-]+\.json$/;
     ok(Array.isArray(index.actions) && index.actions.length > 0, 'index lists actions');
     for (const a of index.actions) {
       const exists = FILE.test(a.file) && fs.existsSync('./actions/' + a.file);
-      const kindOk = (a.kind === 'recipe' && a.file.endsWith('.json')) || (a.kind === 'prompt' && a.file.endsWith('.md'));
-      ok(a.id && a.title && a.description && exists && kindOk, 'action "' + a.id + '" is complete and its file exists');
-      if (a.kind === 'recipe') ok(Array.isArray(readJson('./actions/' + a.file).steps), 'recipe "' + a.id + '" parses');
+      ok(a.id && a.title && a.description && a.kind === 'recipe' && exists, 'action "' + a.id + '" is a complete recipe entry and its file exists');
+      ok(Array.isArray(readJson('./actions/' + a.file).steps), 'recipe "' + a.id + '" parses');
     }
+    ok(!fs.existsSync('./actions/prompts'), 'no prompt actions left');
     const ui = fs.readFileSync('./ui.html', 'utf8');
-    ok(ui.indexOf(FILE.source.replace(/\\/g, '\\\\')) !== -1 || ui.indexOf("recipes\\/[A-Za-z0-9._-]+\\.json") !== -1, 'ui.html uses the same file-name rule');
+    ok(ui.indexOf('var BB_ACTION_FILE = /^recipes\\/[A-Za-z0-9._-]+\\.json$/;') !== -1, 'ui.html uses the same file-name rule');
   }
 
   console.log('--- 32: code.js ships the recipe module the tests ran ---');

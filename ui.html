@@ -607,6 +607,29 @@
       min-width: 0;
     }
 
+    .source-label {
+      flex-shrink: 0;
+      font-size: 11px;
+    }
+
+    .source-select {
+      flex: 1;
+      min-width: 0;
+      height: 24px;
+      padding: 0 4px;
+      font-family: inherit;
+      font-size: 11px;
+      color: var(--figma-color-text, rgba(255, 255, 255, 0.9));
+      background: var(--figma-color-bg, #2c2c2c);
+      border: 1px solid var(--figma-color-border, #4a4a4a);
+      border-radius: 3px;
+      text-overflow: ellipsis;
+    }
+
+    .source-select:disabled {
+      opacity: 0.6;
+    }
+
     .source-row .cta-btn {
       flex-shrink: 0;
       color: var(--figma-color-text-secondary, rgba(255, 255, 255, 0.6));
@@ -866,13 +889,12 @@
 
         <div class="source">
           <div class="source-row" id="icons-row">
-            <div class="ds-label static">
-              <span class="ds-mark" id="icons-mark" aria-hidden="true"></span>
-              <span class="ds-text" id="icons-text" role="status" aria-live="polite">No icon set</span>
-            </div>
-            <button class="cta-btn" id="icons-btn" onclick="toggleIconSource()">Connect</button>
+            <span class="ds-mark" id="icons-mark" aria-hidden="true"></span>
+            <label class="source-label" for="icons-select">Icons</label>
+            <select class="source-select" id="icons-select" onchange="onIconSelect(this)" title="Icon set for this file"></select>
+            <button class="icon-btn icon-btn--borderless" id="icons-forget" onclick="forgetIconSet()" title="Forget this icon set in every file" aria-label="Forget this icon set in every file" style="display:none">×</button>
           </div>
-          <div class="ds-detail" id="icons-detail"></div>
+          <div class="ds-detail" id="icons-detail" role="status" aria-live="polite"></div>
         </div>
       </div>
     </div>
@@ -2867,7 +2889,6 @@
     // BETTERBRIDGE: sources — design system and icons
     // ============================================================================
     var _dsStrict = true;
-    var _iconsConnected = false;
 
     function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
 
@@ -2924,55 +2945,80 @@
         ? 'On: builds refuse raw hex colors and spacing numbers and ask for tokens and styles instead. Click to allow raw values.'
         : 'Off: raw values are allowed but reported. Click to require tokens and styles.';
 
-      renderIcons(ds.icons || { connected: false });
+      renderIcons(ds);
     }
 
-    function renderIcons(icons) {
+    // Icons: a picker per file. Options are "No icon set", every set this user
+    // has connected, and "Connect icons from this file".
+    var _iconSetId = null;
+
+    function renderIcons(ds) {
       var mark = document.getElementById('icons-mark');
-      var text = document.getElementById('icons-text');
+      var select = document.getElementById('icons-select');
       var detail = document.getElementById('icons-detail');
-      var btn = document.getElementById('icons-btn');
-      if (!mark || !text || !detail || !btn) return;
-      _iconsConnected = !!icons.connected;
-      btn.disabled = false;
+      var forget = document.getElementById('icons-forget');
+      if (!mark || !select || !detail || !forget) return;
+      var icons = ds.icons || { connected: false };
+      var sets = ds.iconSets || [];
+      _iconSetId = ds.iconSetId && ds.iconSetId !== 'none' ? ds.iconSetId : null;
+
+      select.textContent = '';
+      function option(value, label) {
+        var o = document.createElement('option');
+        o.value = value;
+        o.textContent = label;
+        select.appendChild(o);
+        return o;
+      }
+      option('', 'No icon set');
+      sets.forEach(function(set) { option(set.id, set.name + ' (' + set.count + ')'); });
+      option('__connect', '+ Connect icons from this file');
+      select.value = icons.connected && _iconSetId ? _iconSetId : '';
+      select.disabled = false;
+
       detail.className = 'ds-detail';
-      if (_iconsConnected) {
+      forget.style.display = icons.connected ? '' : 'none';
+      if (icons.connected) {
         mark.className = 'ds-mark library';
-        text.textContent = 'Icons: ' + icons.name;
-        text.parentNode.title = 'Icons from "' + icons.name + '" are available in every file you open.';
-        detail.textContent = plural(icons.count, 'icon');
-        btn.textContent = 'Disconnect';
-        btn.title = 'Forget this icon set';
+        detail.textContent = plural(icons.count, 'icon') + ' · for this file';
+        select.title = 'Icons from "' + icons.name + '" for this file';
+      } else if (icons.usedOnPage) {
+        mark.className = 'ds-mark local';
+        detail.textContent = plural(icons.usedOnPage, 'library icon') + ' used here. Connect that library for the full set';
+        select.title = 'Icon set for this file';
       } else {
         mark.className = 'ds-mark';
-        text.textContent = 'No icon set';
-        text.parentNode.title = '';
-        detail.textContent = 'Open your icon library, then Connect';
-        btn.textContent = 'Connect';
-        btn.title = 'Save the icons in the open file so Claude can use them in any file';
+        detail.textContent = sets.length ? 'Pick a set for this file' : 'Open an icon library, then Connect';
+        select.title = 'Icon set for this file';
       }
     }
 
-    function toggleIconSource() {
-      var btn = document.getElementById('icons-btn');
-      if (_iconsConnected) {
-        parent.postMessage({ pluginMessage: { type: 'BB_ICONS_DISCONNECT' } }, '*');
+    function onIconSelect(select) {
+      if (select.value === '__connect') {
+        select.disabled = true;
+        var detail = document.getElementById('icons-detail');
+        detail.className = 'ds-detail';
+        detail.textContent = 'Scanning this file for icons…';
+        parent.postMessage({ pluginMessage: { type: 'BB_ICONS_CONNECT' } }, '*');
         return;
       }
-      btn.disabled = true;
-      btn.textContent = 'Scanning…';
-      parent.postMessage({ pluginMessage: { type: 'BB_ICONS_CONNECT' } }, '*');
+      parent.postMessage({ pluginMessage: { type: 'BB_ICONS_SELECT', id: select.value } }, '*');
+    }
+
+    function forgetIconSet() {
+      if (!_iconSetId) return;
+      parent.postMessage({ pluginMessage: { type: 'BB_ICONS_FORGET', id: _iconSetId } }, '*');
     }
 
     function onIconsResult(msg) {
-      var btn = document.getElementById('icons-btn');
-      var detail = document.getElementById('icons-detail');
-      btn.disabled = false;
       if (msg.success) {
         logWithHistory('Icons connected: ' + msg.name + ' (' + msg.count + ')', 'success');
         return; // BB_DS_STATUS follows and re-renders the row
       }
-      btn.textContent = 'Connect';
+      var select = document.getElementById('icons-select');
+      var detail = document.getElementById('icons-detail');
+      select.disabled = false;
+      select.value = _iconSetId || '';
       detail.textContent = msg.error;
       detail.className = 'ds-detail error';
       autoResize();
@@ -2990,21 +3036,20 @@
 
     // ============================================================================
     // BETTERBRIDGE: saved actions (actions/ folder on GitHub), in a bottom sheet
-    // Recipes are JSON the plugin applies itself (no Claude, no tokens).
-    // Prompts are text for Claude; Copy puts them on the clipboard.
-    // Everything fetched is treated as untrusted data: rendered with
+    // Every action is a recipe: JSON the plugin applies itself (no Claude, no
+    // tokens). Everything fetched is treated as untrusted data: rendered with
     // textContent, and recipes can only use runRecipe's fixed step types.
     // ============================================================================
     var BB_CLOUD_PAIRING = false;
     // Branch the actions are read from. Switch to 'main' when this branch merges.
     var BB_ACTIONS_BASE = 'https://raw.githubusercontent.com/AnderMagri/BetterBridge/betterbridge-r4/actions/';
-    var BB_ACTION_FILE = /^(recipes\/[A-Za-z0-9._-]+\.json|prompts\/[A-Za-z0-9._-]+\.md)$/;
+    var BB_ACTION_FILE = /^recipes\/[A-Za-z0-9._-]+\.json$/;
     var _bbActions = { index: null, loading: false, running: null, hidden: [] };
 
     function bbFetch(file) {
       return fetch(BB_ACTIONS_BASE + file + '?t=' + Date.now(), { cache: 'no-store' }).then(function(res) {
         if (!res.ok) throw new Error(file + ': HTTP ' + res.status);
-        return file.slice(-5) === '.json' ? res.json() : res.text();
+        return res.json();
       });
     }
 
@@ -3024,7 +3069,7 @@
       bbFetch('index.json').then(function(index) {
         if (!index || !Array.isArray(index.actions)) throw new Error('index.json has no "actions" list');
         _bbActions.index = index.actions.filter(function(a) {
-          return a && a.id && a.title && (a.kind === 'recipe' || a.kind === 'prompt') && BB_ACTION_FILE.test(a.file || '');
+          return a && a.id && a.title && (a.kind === undefined || a.kind === 'recipe') && BB_ACTION_FILE.test(a.file || '');
         });
         setActionsStatus('');
         renderActions();
@@ -3071,16 +3116,13 @@
         var name = document.createElement('span');
         name.className = 'action-name';
         name.textContent = action.title;
-        name.title = (action.kind === 'recipe' ? 'Runs inside Figma, no tokens. ' : 'Prompt for Claude. ') + (action.description || '');
+        name.title = action.description || '';
 
         var go = document.createElement('button');
         go.className = 'action-go';
-        go.textContent = action.kind === 'recipe' ? 'Run' : 'Copy';
-        go.setAttribute('aria-label', (action.kind === 'recipe' ? 'Run ' : 'Copy prompt: ') + action.title);
-        go.onclick = function() {
-          if (action.kind === 'recipe') runAction(action, go);
-          else copyPromptAction(action);
-        };
+        go.textContent = 'Run';
+        go.setAttribute('aria-label', 'Run ' + action.title);
+        go.onclick = function() { runAction(action, go); };
 
         var remove = document.createElement('button');
         remove.className = 'icon-btn icon-btn--borderless action-remove';
@@ -3128,8 +3170,18 @@
       if (c.variables) made.push(plural(c.variables, 'variable'));
       if (c.textStyles) made.push(plural(c.textStyles, 'text style'));
       if (c.effectStyles) made.push(plural(c.effectStyles, 'effect style'));
-      var skippedCount = (k.variables || 0) + (k.textStyles || 0) + (k.effectStyles || 0);
+      if (c.pages) made.push(plural(c.pages, 'page'));
+      if (c.sections) made.push(plural(c.sections, 'section'));
+      if (c.components) made.push(plural(c.components, 'component'));
+      if (c.nodes) made.push(plural(c.nodes, 'specimen'));
+      var skippedCount = (k.variables || 0) + (k.textStyles || 0) + (k.effectStyles || 0) + (k.sections || 0) + (k.nodes || 0);
       var text = run.title + ': ' + (made.length ? 'created ' + made.join(', ') + '.' : 'nothing new to create.');
+      if (r.stopped && r.unresolved && r.unresolved.length) {
+        var why = r.unresolved[r.unresolved.length - 1].replace(/^require:/, '');
+        setActionsStatus(run.title + ': ' + why, true);
+        logWithHistory(run.title + ': ' + why, 'warn');
+        return;
+      }
       if (skippedCount) text += ' ' + skippedCount + ' already existed.';
       var problems = r.unresolved || [];
       if (problems.length) {
@@ -3138,27 +3190,6 @@
       }
       setActionsStatus(text, problems.length > 0);
       logWithHistory(text, problems.length ? 'warn' : 'success');
-    }
-
-    function copyPromptAction(action) {
-      setActionsStatus(action.title + ': loading…');
-      bbFetch(action.file).then(function(text) {
-        // Drop the front matter (id/title/description): it's for the menu, not Claude.
-        var prompt = String(text).replace(/^---\n[\s\S]*?\n---\n+/, '');
-        var ta = document.createElement('textarea');
-        ta.value = prompt;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        var ok = false;
-        try { ok = document.execCommand('copy'); } catch (e) {}
-        document.body.removeChild(ta);
-        if (ok) setActionsStatus('Copied "' + action.title + '". Paste it into Claude.');
-        else setActionsStatus('Copy failed. Open actions/' + action.file + ' on GitHub instead.', true);
-      }).catch(function(err) {
-        setActionsStatus(action.title + ": couldn't load it: " + (err && err.message ? err.message : err), true);
-      });
     }
 
     // Escape closes the sheet.

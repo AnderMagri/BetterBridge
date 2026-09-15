@@ -468,14 +468,21 @@
   //
   // An icon set is "connected" once, from the plugin window, while its library
   // file is open: iconSummary() lists that file's icon components by name and
-  // key, and the plugin saves the list per user. From then on, in any file,
-  // { icon: "arrow-right" } places a real instance — no manifest, and no icon
-  // list ever passes through Claude's context (findIcons searches it locally).
+  // key, and the plugin saves the list per user. Each file then picks which
+  // saved set it uses (the plugin glue in code.js stores that choice per file
+  // and passes the active set in here). { icon: "arrow-right" } places a real
+  // instance — no manifest, and no icon list ever passes through Claude's
+  // context (findIcons searches it locally).
+  //
+  // Without an active set, library icons already used on the current page are
+  // still usable by name: the plugin API can't list a library's components,
+  // but it can follow placed instances back to them.
   //
   // What counts as an icon: components on a page whose name contains "icon",
   // or components named "Icon/…" / "Icons/…" anywhere.
   // ============================================================================
   var iconSource = null; // { name, fileKey, savedAt, icons: { name: { key, nodeId, set } } }
+  var detectedIcons = {}; // name -> { key, set } for library icons placed on the current page
   globalThis.__bbSetIconSource = function (src) {
     iconSource = src && src.icons ? src : null;
     notifyChange();
@@ -506,33 +513,85 @@
     return { name: figma.root.name, fileKey: figma.fileKey || null, count: count, icons: icons };
   };
 
-  // Case-insensitive search of the connected set. Small results only.
-  globalThis.findIcons = function (query, limit) {
-    if (!iconSource) return { connected: false, icons: [] };
+  // Library icons placed on the current page. Small squares with icon-like
+  // names ("Icon/…", or lowercase names like "arrow-right" / "ic_add") whose
+  // main component comes from a library. Capped so a huge page stays fast.
+  var ICONISH_NAME = /^[a-z0-9]+([-_:][a-z0-9]+)*$/;
+  async function detectLibraryIcons() {
+    var found = {};
+    var instances = figma.currentPage.findAllWithCriteria({ types: ['INSTANCE'] });
+    var looked = 0;
+    for (var i = 0; i < instances.length && looked < 80; i++) {
+      var inst = instances[i];
+      var square = inst.width <= 48 && Math.abs(inst.width - inst.height) < 0.5;
+      if (!ICON_PREFIX.test(inst.name) && !(square && ICONISH_NAME.test(iconKey(inst.name)))) continue;
+      looked++;
+      var main = null;
+      try { main = await inst.getMainComponentAsync(); } catch (e) {}
+      if (!main || !main.remote) continue;
+      var holder = main.parent && main.parent.type === 'COMPONENT_SET' ? main.parent : main;
+      var name = iconKey(holder.name);
+      if (!ICON_PREFIX.test(holder.name) && !(square && ICONISH_NAME.test(name))) continue;
+      if (!found[name]) found[name] = { key: holder.key || main.key, set: holder.type === 'COMPONENT_SET' };
+    }
+    detectedIcons = found;
+    return Object.keys(found).length;
+  }
+  globalThis.__bbDetectedIconKeys = function () {
+    return Object.keys(detectedIcons).map(function (n) { return detectedIcons[n].key; });
+  };
+
+  function searchNames(names, query, limit) {
     var q = String(query || '').toLowerCase();
     var max = typeof limit === 'number' ? limit : 20;
-    var names = Object.keys(iconSource.icons);
     var hits = [];
     for (var i = 0; i < names.length && hits.length < max; i++) {
       if (!q || names[i].toLowerCase().indexOf(q) !== -1) hits.push(names[i]);
     }
-    return { connected: true, set: iconSource.name, total: names.length, icons: hits };
+    return hits;
+  }
+
+  // Case-insensitive search of the active set (or, without one, of the library
+  // icons used on this page). Small results only.
+  globalThis.findIcons = async function (query, limit) {
+    if (iconSource) {
+      var names = Object.keys(iconSource.icons);
+      return { connected: true, set: iconSource.name, total: names.length, icons: searchNames(names, query, limit) };
+    }
+    await detectLibraryIcons();
+    var used = Object.keys(detectedIcons);
+    return { connected: false, source: 'used on this page', total: used.length, icons: searchNames(used, query, limit) };
   };
 
-  function lookupIcon(name) {
-    if (!iconSource) return null;
+  function lookupIn(map, name) {
+    if (!map) return null;
     var want = iconKey(name);
-    if (iconSource.icons[want]) return iconSource.icons[want];
+    if (map[want]) return map[want];
     var lower = want.toLowerCase();
-    for (var k in iconSource.icons) {
-      if (iconSource.icons.hasOwnProperty(k) && k.toLowerCase() === lower) return iconSource.icons[k];
+    for (var k in map) {
+      if (map.hasOwnProperty(k) && k.toLowerCase() === lower) return map[k];
     }
     return null;
   }
 
   // Returns { component } | { error }.
   async function resolveIcon(name) {
-    var ref = lookupIcon(name);
+    var ref = lookupIn(iconSource && iconSource.icons, name);
+    if (!ref && !iconSource) {
+      if (!Object.keys(detectedIcons).length) await detectLibraryIcons();
+      var used = lookupIn(detectedIcons, name);
+      if (used) {
+        try {
+          if (used.set) {
+            var usedSet = await figma.importComponentSetByKeyAsync(used.key);
+            return { component: usedSet.defaultVariant || usedSet.children[0] };
+          }
+          return { component: await figma.importComponentByKeyAsync(used.key) };
+        } catch (e) {
+          return { error: 'icon:' + name + ' is used on this page but could not be imported (' + errMsg(e) + ')' };
+        }
+      }
+    }
     if (ref) {
       if (ref.key) {
         try {
@@ -557,7 +616,7 @@
       if (!ICON_PREFIX.test(local[i].name) || iconKey(local[i].name).toLowerCase() !== want) continue;
       return { component: local[i].type === 'COMPONENT_SET' ? (local[i].defaultVariant || local[i].children[0]) : local[i] };
     }
-    if (!iconSource) return { error: 'icon:' + name + ' (no icon set connected — open the icon library and click Connect next to Icons in the plugin window)' };
+    if (!iconSource) return { error: 'icon:' + name + ' (no icon set for this file — pick one next to Icons in the plugin window, or open the icon library and connect it)' };
     return { error: 'icon:' + name + ' is not in "' + iconSource.name + '" — search with findIcons("' + short(iconKey(name)) + '")' };
   }
 
@@ -650,7 +709,7 @@
       strict: strict,
       icons: iconSource
         ? { connected: true, name: iconSource.name, count: Object.keys(iconSource.icons).length }
-        : { connected: false, count: 0 }
+        : { connected: false, count: 0, usedOnPage: await detectLibraryIcons() }
     };
     if (lib.error) out.libraryError = lib.error;
     if (local.error) out.localError = local.error;

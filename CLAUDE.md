@@ -73,21 +73,32 @@ The plugin's **Actions** menu runs recipes from the BetterBridge repo's
 - If the user asks for a **DS foundation** (base tokens, text styles, shadows)
   and `designSystem()` shows none, tell them to run **Actions → Create DS
   foundation** in the plugin window rather than building it yourself.
-- When a user pastes a saved prompt, follow it as written.
+- If they ask for a **design system page** with swatches, type specimens and
+  basic Button / Input / Card components, point them to **Actions → Build the
+  DS page**.
 - `runRecipe(recipe)` is also available through `figma_execute`, for a recipe
-  the user gives you. It returns `{ ok, created, skipped, unresolved? }`.
+  the user gives you. It returns `{ ok, created, skipped, stopped?, unresolved? }`.
 
 ## Icons — use the connected set, never draw icons
 
-1. `designSystem()` includes `icons: { connected, name, count }`.
-2. If `connected` is true, place icons with `{ icon: "<name>" }` in a buildSpec
-   node. Find names with `findIcons("arrow")`. It returns a short list, so
-   **never** ask for the whole set.
-3. Never build an icon out of vectors or shapes. If none is connected, or the
-   icon isn't in the set, say so. The user connects a set by opening the icon
-   library and clicking **Connect** next to Icons in the plugin window.
+1. `designSystem()` includes `icons: { connected, name, count, usedOnPage? }`.
+   The icon set is chosen **per file**.
+2. Place icons with `{ icon: "<name>" }` in a buildSpec node. Find names with
+   `await findIcons("arrow")`. It returns a short list, so **never** ask for the
+   whole set. Without a connected set, it searches library icons already used
+   on the current page.
+3. Never build an icon out of vectors or shapes. If the icon isn't available,
+   say so. The user picks or connects a set from the Icons picker in the
+   plugin window (open the icon library → **+ Connect icons from this file**).
 4. `"icon:…"` in `unresolved` → not in the set (search with `findIcons`), or
    the library isn't published so it can't be imported here.
+
+## Several files connected at once
+
+Each file has its own design system, icon set and "DS only" setting. When
+working across files, call `designSystem()` in **each** file (each
+`figma_execute` runs in one file) and use that file's names. Never carry token,
+style or icon names over from another file.
 
 ## Registry first — never rebuild what exists
 

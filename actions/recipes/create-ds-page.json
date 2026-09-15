@@ -1,0 +1,536 @@
+{
+  "id": "create-ds-page",
+  "title": "Build the DS page",
+  "description": "Adds a Design System page with color swatches, type specimens, and Button, Input and Card components, all built from the foundation tokens and styles. Needs Create DS foundation first. Safe to run again.",
+  "source": "figma-lore ex-046 (section-first bootstrap); design-lore-systems ds-030, ds-039",
+  "steps": [
+    {
+      "do": "require",
+      "collections": [
+        "Semantic",
+        "Dimensions"
+      ],
+      "textStyles": [
+        "Body/MD/SemiBold",
+        "Body/MD/Regular",
+        "Body/SM/Regular",
+        "Caption/XS/Regular",
+        "Heading/H4"
+      ],
+      "effectStyles": [
+        "Shadow/Level-1"
+      ],
+      "message": "Run \"Create DS foundation\" first"
+    },
+    {
+      "do": "page",
+      "name": "Design System"
+    },
+    {
+      "do": "section",
+      "name": "Colors"
+    },
+    {
+      "do": "section",
+      "name": "Typography"
+    },
+    {
+      "do": "section",
+      "name": "Buttons"
+    },
+    {
+      "do": "section",
+      "name": "Inputs"
+    },
+    {
+      "do": "section",
+      "name": "Cards"
+    },
+    {
+      "do": "colorSwatches",
+      "in": "Colors",
+      "name": "Semantic colors",
+      "collection": "Semantic",
+      "chrome": {
+        "fill": "color/surface/default",
+        "gap": "spacing/xl",
+        "pad": "spacing/xl",
+        "radius": "radius/lg",
+        "innerGap": "spacing/md",
+        "labelGap": "spacing/xs",
+        "swatchRadius": "radius/md",
+        "swatchStroke": "color/border/subtle",
+        "titleStyle": "Body/MD/SemiBold",
+        "titleColor": "color/text/primary",
+        "labelStyle": "Caption/XS/Regular",
+        "labelColor": "color/text/secondary"
+      }
+    },
+    {
+      "do": "typeSpecimens",
+      "in": "Typography",
+      "name": "Text styles",
+      "chrome": {
+        "fill": "color/surface/default",
+        "gap": "spacing/xl",
+        "pad": "spacing/xl",
+        "radius": "radius/lg",
+        "innerGap": "spacing/md",
+        "labelGap": "spacing/xs",
+        "swatchRadius": "radius/md",
+        "swatchStroke": "color/border/subtle",
+        "titleStyle": "Body/MD/SemiBold",
+        "titleColor": "color/text/primary",
+        "labelStyle": "Caption/XS/Regular",
+        "labelColor": "color/text/secondary"
+      }
+    },
+    {
+      "do": "componentSet",
+      "in": "Buttons",
+      "name": "Button",
+      "textProps": {
+        "Label": "Label"
+      },
+      "variants": [
+        {
+          "props": {
+            "Variant": "Primary",
+            "State": "Default"
+          },
+          "build": {
+            "type": "frame",
+            "layout": "row",
+            "align": "center",
+            "cross": "center",
+            "pad": [
+              "spacing/sm",
+              "spacing/md",
+              "spacing/sm",
+              "spacing/md"
+            ],
+            "radius": "radius/md",
+            "fill": "color/action/primary/default",
+            "children": [
+              {
+                "type": "text",
+                "name": "Label",
+                "text": "Button",
+                "textStyle": "Body/MD/SemiBold",
+                "fill": "color/text/on-action"
+              }
+            ]
+          }
+        },
+        {
+          "props": {
+            "Variant": "Primary",
+            "State": "Hover"
+          },
+          "build": {
+            "type": "frame",
+            "layout": "row",
+            "align": "center",
+            "cross": "center",
+            "pad": [
+              "spacing/sm",
+              "spacing/md",
+              "spacing/sm",
+              "spacing/md"
+            ],
+            "radius": "radius/md",
+            "fill": "color/action/primary/hover",
+            "children": [
+              {
+                "type": "text",
+                "name": "Label",
+                "text": "Button",
+                "textStyle": "Body/MD/SemiBold",
+                "fill": "color/text/on-action"
+              }
+            ]
+          }
+        },
+        {
+          "props": {
+            "Variant": "Primary",
+            "State": "Disabled"
+          },
+          "build": {
+            "type": "frame",
+            "layout": "row",
+            "align": "center",
+            "cross": "center",
+            "pad": [
+              "spacing/sm",
+              "spacing/md",
+              "spacing/sm",
+              "spacing/md"
+            ],
+            "radius": "radius/md",
+            "fill": "color/surface/muted",
+            "children": [
+              {
+                "type": "text",
+                "name": "Label",
+                "text": "Button",
+                "textStyle": "Body/MD/SemiBold",
+                "fill": "color/text/disabled"
+              }
+            ]
+          }
+        },
+        {
+          "props": {
+            "Variant": "Secondary",
+            "State": "Default"
+          },
+          "build": {
+            "type": "frame",
+            "layout": "row",
+            "align": "center",
+            "cross": "center",
+            "pad": [
+              "spacing/sm",
+              "spacing/md",
+              "spacing/sm",
+              "spacing/md"
+            ],
+            "radius": "radius/md",
+            "fill": "color/surface/default",
+            "stroke": "color/border/default",
+            "children": [
+              {
+                "type": "text",
+                "name": "Label",
+                "text": "Button",
+                "textStyle": "Body/MD/SemiBold",
+                "fill": "color/text/primary"
+              }
+            ]
+          }
+        },
+        {
+          "props": {
+            "Variant": "Secondary",
+            "State": "Hover"
+          },
+          "build": {
+            "type": "frame",
+            "layout": "row",
+            "align": "center",
+            "cross": "center",
+            "pad": [
+              "spacing/sm",
+              "spacing/md",
+              "spacing/sm",
+              "spacing/md"
+            ],
+            "radius": "radius/md",
+            "fill": "color/surface/subtle",
+            "stroke": "color/border/default",
+            "children": [
+              {
+                "type": "text",
+                "name": "Label",
+                "text": "Button",
+                "textStyle": "Body/MD/SemiBold",
+                "fill": "color/text/primary"
+              }
+            ]
+          }
+        },
+        {
+          "props": {
+            "Variant": "Secondary",
+            "State": "Disabled"
+          },
+          "build": {
+            "type": "frame",
+            "layout": "row",
+            "align": "center",
+            "cross": "center",
+            "pad": [
+              "spacing/sm",
+              "spacing/md",
+              "spacing/sm",
+              "spacing/md"
+            ],
+            "radius": "radius/md",
+            "fill": "color/surface/muted",
+            "stroke": "color/border/default",
+            "children": [
+              {
+                "type": "text",
+                "name": "Label",
+                "text": "Button",
+                "textStyle": "Body/MD/SemiBold",
+                "fill": "color/text/disabled"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "do": "componentSet",
+      "in": "Inputs",
+      "name": "Input",
+      "textProps": {
+        "Label": "Label",
+        "Helper": "Helper"
+      },
+      "variants": [
+        {
+          "props": {
+            "State": "Default"
+          },
+          "build": {
+            "type": "frame",
+            "layout": "col",
+            "gap": "spacing/xs",
+            "fill": "color/surface/default",
+            "w": 280,
+            "children": [
+              {
+                "type": "text",
+                "name": "Label",
+                "text": "Label",
+                "textStyle": "Body/SM/Regular",
+                "fill": "color/text/primary"
+              },
+              {
+                "type": "frame",
+                "name": "Field",
+                "layout": "row",
+                "cross": "center",
+                "pad": [
+                  "spacing/sm",
+                  "spacing/md",
+                  "spacing/sm",
+                  "spacing/md"
+                ],
+                "radius": "radius/md",
+                "fill": "color/surface/default",
+                "stroke": "color/border/default",
+                "w": "fill",
+                "children": [
+                  {
+                    "type": "text",
+                    "name": "Placeholder",
+                    "text": "Placeholder",
+                    "textStyle": "Body/MD/Regular",
+                    "fill": "color/text/secondary"
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "name": "Helper",
+                "text": "Helper text",
+                "textStyle": "Caption/XS/Regular",
+                "fill": "color/text/secondary"
+              }
+            ]
+          }
+        },
+        {
+          "props": {
+            "State": "Focus"
+          },
+          "build": {
+            "type": "frame",
+            "layout": "col",
+            "gap": "spacing/xs",
+            "fill": "color/surface/default",
+            "w": 280,
+            "children": [
+              {
+                "type": "text",
+                "name": "Label",
+                "text": "Label",
+                "textStyle": "Body/SM/Regular",
+                "fill": "color/text/primary"
+              },
+              {
+                "type": "frame",
+                "name": "Field",
+                "layout": "row",
+                "cross": "center",
+                "pad": [
+                  "spacing/sm",
+                  "spacing/md",
+                  "spacing/sm",
+                  "spacing/md"
+                ],
+                "radius": "radius/md",
+                "fill": "color/surface/default",
+                "stroke": "color/action/primary/default",
+                "w": "fill",
+                "children": [
+                  {
+                    "type": "text",
+                    "name": "Placeholder",
+                    "text": "Placeholder",
+                    "textStyle": "Body/MD/Regular",
+                    "fill": "color/text/secondary"
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "name": "Helper",
+                "text": "Helper text",
+                "textStyle": "Caption/XS/Regular",
+                "fill": "color/text/secondary"
+              }
+            ]
+          }
+        },
+        {
+          "props": {
+            "State": "Error"
+          },
+          "build": {
+            "type": "frame",
+            "layout": "col",
+            "gap": "spacing/xs",
+            "fill": "color/surface/default",
+            "w": 280,
+            "children": [
+              {
+                "type": "text",
+                "name": "Label",
+                "text": "Label",
+                "textStyle": "Body/SM/Regular",
+                "fill": "color/text/primary"
+              },
+              {
+                "type": "frame",
+                "name": "Field",
+                "layout": "row",
+                "cross": "center",
+                "pad": [
+                  "spacing/sm",
+                  "spacing/md",
+                  "spacing/sm",
+                  "spacing/md"
+                ],
+                "radius": "radius/md",
+                "fill": "color/surface/default",
+                "stroke": "color/feedback/danger/default",
+                "w": "fill",
+                "children": [
+                  {
+                    "type": "text",
+                    "name": "Placeholder",
+                    "text": "Placeholder",
+                    "textStyle": "Body/MD/Regular",
+                    "fill": "color/text/secondary"
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "name": "Helper",
+                "text": "Something went wrong",
+                "textStyle": "Caption/XS/Regular",
+                "fill": "color/feedback/danger/default"
+              }
+            ]
+          }
+        },
+        {
+          "props": {
+            "State": "Disabled"
+          },
+          "build": {
+            "type": "frame",
+            "layout": "col",
+            "gap": "spacing/xs",
+            "fill": "color/surface/default",
+            "w": 280,
+            "children": [
+              {
+                "type": "text",
+                "name": "Label",
+                "text": "Label",
+                "textStyle": "Body/SM/Regular",
+                "fill": "color/text/primary"
+              },
+              {
+                "type": "frame",
+                "name": "Field",
+                "layout": "row",
+                "cross": "center",
+                "pad": [
+                  "spacing/sm",
+                  "spacing/md",
+                  "spacing/sm",
+                  "spacing/md"
+                ],
+                "radius": "radius/md",
+                "fill": "color/surface/muted",
+                "stroke": "color/border/subtle",
+                "w": "fill",
+                "children": [
+                  {
+                    "type": "text",
+                    "name": "Placeholder",
+                    "text": "Placeholder",
+                    "textStyle": "Body/MD/Regular",
+                    "fill": "color/text/disabled"
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "name": "Helper",
+                "text": "Helper text",
+                "textStyle": "Caption/XS/Regular",
+                "fill": "color/text/secondary"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "do": "component",
+      "in": "Cards",
+      "build": {
+        "type": "frame",
+        "name": "Card",
+        "layout": "col",
+        "gap": "spacing/md",
+        "pad": "spacing/lg",
+        "radius": "radius/lg",
+        "fill": "color/surface/default",
+        "stroke": "color/border/subtle",
+        "effect": "Shadow/Level-1",
+        "w": 320,
+        "children": [
+          {
+            "type": "text",
+            "name": "Title",
+            "text": "Card title",
+            "textStyle": "Heading/H4",
+            "fill": "color/text/primary"
+          },
+          {
+            "type": "text",
+            "name": "Body",
+            "text": "Supporting text that explains what this card is about.",
+            "textStyle": "Body/SM/Regular",
+            "fill": "color/text/secondary",
+            "w": "fill"
+          },
+          {
+            "use": "Button",
+            "name": "Action"
+          }
+        ]
+      }
+    }
+  ]
+}

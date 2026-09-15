@@ -5,21 +5,16 @@ window. The plugin reads it **live from GitHub**, so a change pushed here reache
 everyone the next time they open the sheet or click **Load**. No re-import is needed.
 GitHub can take a few minutes to serve a new version.
 
-There are two kinds of action.
-
-| Kind | Lives in | What the sheet does | Uses Claude tokens? |
-|---|---|---|---|
-| **Recipe** | `recipes/*.json` | **Run** — the plugin applies it directly | **No** |
-| **Prompt** | `prompts/*.md` | **Copy** — you paste it into Claude | Yes, but you don't have to rewrite the instructions |
-
-Use a **recipe** for work that's the same every time, like creating tokens or
-styles. Use a **prompt** for work that needs judgment, like building
-components or reviewing a screen.
+Every action is a **recipe**: a JSON file in `recipes/` that the plugin applies
+itself when you click **Run**. Claude isn't involved, so **no tokens are used**.
+That makes recipes right for work that's the same every time: tokens, styles,
+specimen pages, standard components. Work that needs judgment, like designing a
+screen, is a conversation with Claude, not a saved action.
 
 ## Adding an action
 
-1. Add the file to `recipes/` or `prompts/`. File names may only use letters,
-   numbers, `.`, `_` and `-`.
+1. Add the file to `recipes/`. File names may only use letters, numbers, `.`,
+   `_` and `-`.
 2. List it in `index.json`:
    ```json
    { "id": "my-action", "kind": "recipe", "title": "Short name",
@@ -32,8 +27,10 @@ components or reviewing a screen.
 
 ## Recipe format
 
-Recipes are **data, not code**. The plugin only understands the three step
-types below, so a recipe can't do anything else in someone's Figma file.
+Recipes are **data, not code**. The plugin only understands the step types
+below, so a recipe can't do anything else in someone's Figma file.
+
+### Foundation steps: tokens and styles
 
 ```json
 {
@@ -65,20 +62,28 @@ types below, so a recipe can't do anything else in someone's Figma file.
   name) is skipped, never overwritten. An existing collection is never given
   new modes. If its modes don't match, the menu reports it.
 
-## Prompt format
+### Page steps: building on a foundation
 
-Plain Markdown. The front matter (between the `---` lines) is for the menu and
-isn't copied; everything after it is.
+Everything these steps draw goes through `buildSpec`, so it uses token and style
+names and follows "DS only" exactly like Claude's builds. See
+[`recipes/create-ds-page.json`](recipes/create-ds-page.json) for a full example.
 
-```markdown
----
-id: my-prompt
-title: Short name
-description: One sentence.
----
+| Step | What it does |
+|---|---|
+| `{ "do": "require", "collections": [...], "textStyles": [...], "effectStyles": [...], "message": "..." }` | Stops the recipe with `message` if anything listed is missing. Put it first. |
+| `{ "do": "page", "name": "Design System" }` | Finds or creates the page, and opens it |
+| `{ "do": "section", "name": "Buttons" }` | Finds or creates a section; new ones are placed left to right |
+| `{ "do": "build", "in": "Buttons", "build": { …buildSpec node… } }` | Builds a node into the section |
+| `{ "do": "component", "in": "Cards", "build": { "name": "Card", … } }` | The same, turned into a component |
+| `{ "do": "componentSet", "in": "Buttons", "name": "Button", "textProps": { "Label": "Label" }, "variants": [{ "props": { "Variant": "Primary", "State": "Default" }, "build": { … } }] }` | One component per variant, combined into a set. `textProps` maps a text property to the text layer it edits in every variant |
+| `{ "do": "colorSwatches", "in": "Colors", "collection": "Semantic", "chrome": { … } }` | One swatch per color variable in the collection, grouped by name |
+| `{ "do": "typeSpecimens", "in": "Typography", "sample": "…", "chrome": { … } }` | One sample per local text style |
 
-The instructions for Claude…
-```
+`chrome` holds the token and style names used for the specimen frames and labels
+(`fill`, `gap`, `pad`, `radius`, `innerGap`, `labelGap`, `swatchRadius`,
+`swatchStroke`, `titleStyle`, `titleColor`, `labelStyle`, `labelColor`).
+
+**Running it again is safe.** Anything already in a section with the same name is skipped.
 
 ## Which branch the plugin reads
 

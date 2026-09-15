@@ -962,14 +962,21 @@ async function resolveSlotNode(params) {
   //
   // An icon set is "connected" once, from the plugin window, while its library
   // file is open: iconSummary() lists that file's icon components by name and
-  // key, and the plugin saves the list per user. From then on, in any file,
-  // { icon: "arrow-right" } places a real instance — no manifest, and no icon
-  // list ever passes through Claude's context (findIcons searches it locally).
+  // key, and the plugin saves the list per user. Each file then picks which
+  // saved set it uses (the plugin glue in code.js stores that choice per file
+  // and passes the active set in here). { icon: "arrow-right" } places a real
+  // instance — no manifest, and no icon list ever passes through Claude's
+  // context (findIcons searches it locally).
+  //
+  // Without an active set, library icons already used on the current page are
+  // still usable by name: the plugin API can't list a library's components,
+  // but it can follow placed instances back to them.
   //
   // What counts as an icon: components on a page whose name contains "icon",
   // or components named "Icon/…" / "Icons/…" anywhere.
   // ============================================================================
   var iconSource = null; // { name, fileKey, savedAt, icons: { name: { key, nodeId, set } } }
+  var detectedIcons = {}; // name -> { key, set } for library icons placed on the current page
   globalThis.__bbSetIconSource = function (src) {
     iconSource = src && src.icons ? src : null;
     notifyChange();
@@ -1000,33 +1007,85 @@ async function resolveSlotNode(params) {
     return { name: figma.root.name, fileKey: figma.fileKey || null, count: count, icons: icons };
   };
 
-  // Case-insensitive search of the connected set. Small results only.
-  globalThis.findIcons = function (query, limit) {
-    if (!iconSource) return { connected: false, icons: [] };
+  // Library icons placed on the current page. Small squares with icon-like
+  // names ("Icon/…", or lowercase names like "arrow-right" / "ic_add") whose
+  // main component comes from a library. Capped so a huge page stays fast.
+  var ICONISH_NAME = /^[a-z0-9]+([-_:][a-z0-9]+)*$/;
+  async function detectLibraryIcons() {
+    var found = {};
+    var instances = figma.currentPage.findAllWithCriteria({ types: ['INSTANCE'] });
+    var looked = 0;
+    for (var i = 0; i < instances.length && looked < 80; i++) {
+      var inst = instances[i];
+      var square = inst.width <= 48 && Math.abs(inst.width - inst.height) < 0.5;
+      if (!ICON_PREFIX.test(inst.name) && !(square && ICONISH_NAME.test(iconKey(inst.name)))) continue;
+      looked++;
+      var main = null;
+      try { main = await inst.getMainComponentAsync(); } catch (e) {}
+      if (!main || !main.remote) continue;
+      var holder = main.parent && main.parent.type === 'COMPONENT_SET' ? main.parent : main;
+      var name = iconKey(holder.name);
+      if (!ICON_PREFIX.test(holder.name) && !(square && ICONISH_NAME.test(name))) continue;
+      if (!found[name]) found[name] = { key: holder.key || main.key, set: holder.type === 'COMPONENT_SET' };
+    }
+    detectedIcons = found;
+    return Object.keys(found).length;
+  }
+  globalThis.__bbDetectedIconKeys = function () {
+    return Object.keys(detectedIcons).map(function (n) { return detectedIcons[n].key; });
+  };
+
+  function searchNames(names, query, limit) {
     var q = String(query || '').toLowerCase();
     var max = typeof limit === 'number' ? limit : 20;
-    var names = Object.keys(iconSource.icons);
     var hits = [];
     for (var i = 0; i < names.length && hits.length < max; i++) {
       if (!q || names[i].toLowerCase().indexOf(q) !== -1) hits.push(names[i]);
     }
-    return { connected: true, set: iconSource.name, total: names.length, icons: hits };
+    return hits;
+  }
+
+  // Case-insensitive search of the active set (or, without one, of the library
+  // icons used on this page). Small results only.
+  globalThis.findIcons = async function (query, limit) {
+    if (iconSource) {
+      var names = Object.keys(iconSource.icons);
+      return { connected: true, set: iconSource.name, total: names.length, icons: searchNames(names, query, limit) };
+    }
+    await detectLibraryIcons();
+    var used = Object.keys(detectedIcons);
+    return { connected: false, source: 'used on this page', total: used.length, icons: searchNames(used, query, limit) };
   };
 
-  function lookupIcon(name) {
-    if (!iconSource) return null;
+  function lookupIn(map, name) {
+    if (!map) return null;
     var want = iconKey(name);
-    if (iconSource.icons[want]) return iconSource.icons[want];
+    if (map[want]) return map[want];
     var lower = want.toLowerCase();
-    for (var k in iconSource.icons) {
-      if (iconSource.icons.hasOwnProperty(k) && k.toLowerCase() === lower) return iconSource.icons[k];
+    for (var k in map) {
+      if (map.hasOwnProperty(k) && k.toLowerCase() === lower) return map[k];
     }
     return null;
   }
 
   // Returns { component } | { error }.
   async function resolveIcon(name) {
-    var ref = lookupIcon(name);
+    var ref = lookupIn(iconSource && iconSource.icons, name);
+    if (!ref && !iconSource) {
+      if (!Object.keys(detectedIcons).length) await detectLibraryIcons();
+      var used = lookupIn(detectedIcons, name);
+      if (used) {
+        try {
+          if (used.set) {
+            var usedSet = await figma.importComponentSetByKeyAsync(used.key);
+            return { component: usedSet.defaultVariant || usedSet.children[0] };
+          }
+          return { component: await figma.importComponentByKeyAsync(used.key) };
+        } catch (e) {
+          return { error: 'icon:' + name + ' is used on this page but could not be imported (' + errMsg(e) + ')' };
+        }
+      }
+    }
     if (ref) {
       if (ref.key) {
         try {
@@ -1051,7 +1110,7 @@ async function resolveSlotNode(params) {
       if (!ICON_PREFIX.test(local[i].name) || iconKey(local[i].name).toLowerCase() !== want) continue;
       return { component: local[i].type === 'COMPONENT_SET' ? (local[i].defaultVariant || local[i].children[0]) : local[i] };
     }
-    if (!iconSource) return { error: 'icon:' + name + ' (no icon set connected — open the icon library and click Connect next to Icons in the plugin window)' };
+    if (!iconSource) return { error: 'icon:' + name + ' (no icon set for this file — pick one next to Icons in the plugin window, or open the icon library and connect it)' };
     return { error: 'icon:' + name + ' is not in "' + iconSource.name + '" — search with findIcons("' + short(iconKey(name)) + '")' };
   }
 
@@ -1144,7 +1203,7 @@ async function resolveSlotNode(params) {
       strict: strict,
       icons: iconSource
         ? { connected: true, name: iconSource.name, count: Object.keys(iconSource.icons).length }
-        : { connected: false, count: 0 }
+        : { connected: false, count: 0, usedOnPage: await detectLibraryIcons() }
     };
     if (lib.error) out.libraryError = lib.error;
     if (local.error) out.localError = local.error;
@@ -1550,7 +1609,7 @@ async function resolveSlotNode(params) {
 // skipped, so nobody's edits get overwritten. An existing collection is never
 // given new modes — a mismatch is reported instead.
 //
-// Steps:
+// Steps — foundation (tokens and styles):
 //   { do: "collection", name, modes: ["Light", "Dark"],
 //     variables: [{ name, type: "COLOR|FLOAT|STRING|BOOLEAN",
 //                   value | values: { <mode>: v }, scopes?, description? }] }
@@ -1559,6 +1618,21 @@ async function resolveSlotNode(params) {
 //                                  lineHeight?: px | "150%" | "auto",
 //                                  letterSpacing?: px | "-1%" }] }
 //   { do: "effectStyles", styles: [{ name, shadows: [{ x, y, blur, spread, color, inner? }] }] }
+//
+// Steps — pages built on top of a foundation (all drawing goes through
+// buildSpec, so tokens, styles and strict mode apply exactly as they do for
+// Claude's builds):
+//   { do: "require", collections?, textStyles?, effectStyles?, message }
+//       stops the recipe, with `message`, if anything listed is missing
+//   { do: "page", name }                    find or create the page, and open it
+//   { do: "section", name }                 find or create a section on that page
+//   { do: "build", in: <section>, build }   a buildSpec node, placed in the section
+//   { do: "component", in, build }          the same, turned into a component
+//   { do: "componentSet", in, name, textProps?: { <Property>: <text layer name> },
+//     variants: [{ props: { Variant: "Primary" }, build }] }
+//   { do: "colorSwatches", in, name, collection, chrome }  one swatch per color variable
+//   { do: "typeSpecimens", in, name, sample, chrome }      one sample per local text style
+// Anything already in the section with the same name is skipped.
 // ============================================================================
 (function () {
   var TYPES = ['COLOR', 'FLOAT', 'STRING', 'BOOLEAN'];
@@ -1589,8 +1663,8 @@ async function resolveSlotNode(params) {
   globalThis.runRecipe = async function (recipe) {
     if (!recipe || !Array.isArray(recipe.steps)) throw new Error('runRecipe requires { steps: [...] }');
 
-    var created = { collections: 0, modes: 0, variables: 0, textStyles: 0, effectStyles: 0 };
-    var skipped = { variables: 0, textStyles: 0, effectStyles: 0 };
+    var created = { collections: 0, modes: 0, variables: 0, textStyles: 0, effectStyles: 0, pages: 0, sections: 0, nodes: 0, components: 0 };
+    var skipped = { variables: 0, textStyles: 0, effectStyles: 0, sections: 0, nodes: 0 };
     var unresolved = [];
     function report(msg) { unresolved.push(msg); }
 
@@ -1784,12 +1858,241 @@ async function resolveSlotNode(params) {
       }
     }
 
-    var STEPS = { collection: collectionStep, textStyles: textStylesStep, effectStyles: effectStylesStep };
+    // ---- page steps -----------------------------------------------------------
+    var targetPage = null;
+
+    async function requireStep(step) {
+      var missing = [];
+      var names = {};
+      var liveCols = await figma.variables.getLocalVariableCollectionsAsync();
+      for (var i = 0; i < liveCols.length; i++) names['c:' + liveCols[i].name] = true;
+      var texts = await figma.getLocalTextStylesAsync();
+      for (var t = 0; t < texts.length; t++) names['t:' + texts[t].name] = true;
+      var effects = await figma.getLocalEffectStylesAsync();
+      for (var f = 0; f < effects.length; f++) names['e:' + effects[f].name] = true;
+      (step.collections || []).forEach(function (n) { if (!names['c:' + n]) missing.push('collection ' + n); });
+      (step.textStyles || []).forEach(function (n) { if (!names['t:' + n]) missing.push('text style ' + n); });
+      (step.effectStyles || []).forEach(function (n) { if (!names['e:' + n]) missing.push('effect style ' + n); });
+      if (!missing.length) return true;
+      report('require:' + (step.message || 'this recipe needs things this file doesn\'t have') + ' (missing ' + missing.join(', ') + ')');
+      return false;
+    }
+
+    async function pageStep(step) {
+      if (!step.name) { report('step:page needs a name'); return; }
+      await figma.loadAllPagesAsync();
+      var page = figma.root.children.filter(function (p) { return p.name === step.name; })[0];
+      if (!page) {
+        page = figma.createPage();
+        page.name = step.name;
+        created.pages++;
+      }
+      // Open it: component lookups by name (e.g. a Card using the Button) scan
+      // the current page, and it's where the user wants to look afterwards.
+      await figma.setCurrentPageAsync(page);
+      targetPage = page;
+    }
+
+    function findSection(name) {
+      var page = targetPage || figma.currentPage;
+      return page.children.filter(function (n) { return n.type === 'SECTION' && n.name === name; })[0] || null;
+    }
+
+    async function sectionStep(step) {
+      if (!step.name) { report('step:section needs a name'); return; }
+      if (findSection(step.name)) { skipped.sections++; return; }
+      var page = targetPage || figma.currentPage;
+      var x = 0;
+      page.children.forEach(function (n) { if (n.type === 'SECTION') x = Math.max(x, n.x + n.width + 120); });
+      var section = figma.createSection();
+      section.name = step.name;
+      page.appendChild(section);
+      section.x = x;
+      section.y = 0;
+      section.resizeWithoutConstraints(480, 320);
+      created.sections++;
+    }
+
+    // Stack a section's children top to bottom and size the section to fit.
+    function fitSection(section) {
+      var pad = 64, gap = 64, y = pad, width = 0;
+      section.children.forEach(function (c) {
+        c.x = pad;
+        c.y = y;
+        y += c.height + gap;
+        width = Math.max(width, c.width);
+      });
+      section.resizeWithoutConstraints(Math.max(480, width + pad * 2), Math.max(320, y - gap + pad));
+    }
+
+    // Builds `node` (a buildSpec node) into the named section. Returns the new
+    // node, or null when the section is missing, the name is taken, or the
+    // build failed — all reported.
+    async function buildInto(sectionName, node, label) {
+      var section = findSection(sectionName);
+      if (!section) { report(label + ': section "' + sectionName + '" not found (add a section step before it)'); return null; }
+      if (node.name && section.children.some(function (c) { return c.name === node.name; })) { skipped.nodes++; return null; }
+      var res;
+      try { res = await globalThis.buildSpec({ parentId: section.id, select: false, build: node }); }
+      catch (e) { report(label + ': ' + errMsg(e)); return null; }
+      if (res.unresolved) res.unresolved.forEach(function (u) { report(label + ': ' + u); });
+      return await figma.getNodeByIdAsync(res.id);
+    }
+
+    async function buildStep(step) {
+      if (!step.build) { report('step:build needs a build node'); return; }
+      var node = await buildInto(step.in, step.build, step.build.name || 'build');
+      if (!node) return;
+      created.nodes++;
+      fitSection(node.parent);
+    }
+
+    async function componentStep(step) {
+      if (!step.build || !step.build.name) { report('step:component needs a build node with a name'); return; }
+      var node = await buildInto(step.in, step.build, step.build.name);
+      if (!node) return;
+      try {
+        var component = figma.createComponentFromNode(node);
+        created.components++;
+        fitSection(component.parent);
+      } catch (e) { report(step.build.name + ': could not become a component (' + errMsg(e) + ')'); }
+    }
+
+    async function componentSetStep(step) {
+      if (!step.name || !Array.isArray(step.variants) || !step.variants.length) {
+        report('step:componentSet needs a name and variants');
+        return;
+      }
+      var section = findSection(step.in);
+      if (section && section.children.some(function (c) { return c.name === step.name; })) { skipped.nodes++; return; }
+
+      var components = [];
+      for (var i = 0; i < step.variants.length; i++) {
+        var v = step.variants[i];
+        var variantName = Object.keys(v.props || {}).map(function (k) { return k + '=' + v.props[k]; }).join(', ');
+        if (!variantName || !v.build) { report(step.name + ': variant ' + (i + 1) + ' needs props and a build node'); continue; }
+        var build = {};
+        for (var k in v.build) if (v.build.hasOwnProperty(k)) build[k] = v.build[k];
+        build.name = variantName;
+        var node = await buildInto(step.in, build, step.name + ' ' + variantName);
+        if (!node) continue;
+        try { components.push(figma.createComponentFromNode(node)); }
+        catch (e) { report(step.name + ' ' + variantName + ': could not become a component (' + errMsg(e) + ')'); }
+      }
+      if (!components.length) return;
+
+      try {
+        var set = figma.combineAsVariants(components, findSection(step.in));
+        set.name = step.name;
+        set.layoutMode = 'VERTICAL';
+        set.primaryAxisSizingMode = 'AUTO';
+        set.counterAxisSizingMode = 'AUTO';
+        set.itemSpacing = 16;
+        set.paddingTop = set.paddingRight = set.paddingBottom = set.paddingLeft = 24;
+
+        // Text properties: one editable label shared by every variant.
+        var textProps = step.textProps || {};
+        for (var prop in textProps) {
+          if (!textProps.hasOwnProperty(prop)) continue;
+          var layer = textProps[prop];
+          var texts = components.map(function (c) {
+            return c.findOne(function (n) { return n.type === 'TEXT' && n.name === layer; });
+          });
+          if (texts.some(function (t) { return !t; })) { report(step.name + ': text layer "' + layer + '" missing in some variants, so no ' + prop + ' property'); continue; }
+          var key = set.addComponentProperty(prop, 'TEXT', texts[0].characters);
+          texts.forEach(function (t) { t.componentPropertyReferences = { characters: key }; });
+        }
+        created.components++;
+        fitSection(set.parent);
+      } catch (e) {
+        report(step.name + ': could not combine variants (' + errMsg(e) + ')');
+      }
+    }
+
+    // One swatch per COLOR variable in a collection, grouped by the second
+    // part of the name (color/surface/default -> "surface"). The swatch fill is
+    // scoped to the collection so a same-named library token can't sneak in.
+    async function colorSwatchesStep(step) {
+      var ch = step.chrome || {};
+      var collection = null;
+      var liveCols = await figma.variables.getLocalVariableCollectionsAsync();
+      for (var i = 0; i < liveCols.length; i++) if (liveCols[i].name === step.collection) collection = liveCols[i];
+      if (!collection) { report('colorSwatches: collection "' + step.collection + '" not found'); return; }
+      var vars = (await figma.variables.getLocalVariablesAsync()).filter(function (v) {
+        return v.variableCollectionId === collection.id && v.resolvedType === 'COLOR';
+      });
+      if (!vars.length) { report('colorSwatches: "' + step.collection + '" has no color variables'); return; }
+
+      var groups = [], byGroup = {};
+      vars.forEach(function (v) {
+        var parts = v.name.split('/');
+        var group = parts[0] === 'color' && parts.length > 2 ? parts[1] : parts[0];
+        if (!byGroup[group]) { byGroup[group] = []; groups.push(group); }
+        byGroup[group].push(v);
+      });
+
+      var node = {
+        type: 'frame', name: step.name || 'Color swatches', layout: 'col', gap: ch.gap, pad: ch.pad, radius: ch.radius, fill: ch.fill,
+        children: groups.map(function (g) {
+          return {
+            type: 'frame', name: g, layout: 'col', gap: ch.innerGap, fill: ch.fill,
+            children: [
+              { type: 'text', name: 'Title', text: g, textStyle: ch.titleStyle, fill: ch.titleColor },
+              { type: 'frame', name: 'Swatches', layout: 'row', gap: ch.innerGap, fill: ch.fill,
+                children: byGroup[g].map(function (v) {
+                  return {
+                    type: 'frame', name: v.name, layout: 'col', gap: ch.labelGap, fill: ch.fill,
+                    children: [
+                      { type: 'rectangle', name: 'Swatch', w: 128, h: 56, radius: ch.swatchRadius, fill: step.collection + ':' + v.name, stroke: ch.swatchStroke },
+                      { type: 'text', name: 'Token', text: v.name.replace(/^color\//, ''), textStyle: ch.labelStyle, fill: ch.labelColor }
+                    ]
+                  };
+                }) }
+            ]
+          };
+        })
+      };
+      var built = await buildInto(step.in, node, 'colorSwatches');
+      if (!built) return;
+      created.nodes++;
+      fitSection(built.parent);
+    }
+
+    // One row per local text style: its name, then a sample set in it.
+    async function typeSpecimensStep(step) {
+      var ch = step.chrome || {};
+      var styles = await figma.getLocalTextStylesAsync();
+      if (!styles.length) { report('typeSpecimens: this file has no text styles'); return; }
+      var node = {
+        type: 'frame', name: step.name || 'Type specimens', layout: 'col', gap: ch.gap, pad: ch.pad, radius: ch.radius, fill: ch.fill,
+        children: styles.map(function (st) {
+          return {
+            type: 'frame', name: st.name, layout: 'col', gap: ch.labelGap, fill: ch.fill,
+            children: [
+              { type: 'text', name: 'Style', text: st.name, textStyle: ch.labelStyle, fill: ch.labelColor },
+              { type: 'text', name: 'Sample', text: step.sample || 'The quick brown fox jumps over the lazy dog', textStyle: st.name, fill: ch.titleColor }
+            ]
+          };
+        })
+      };
+      var built = await buildInto(step.in, node, 'typeSpecimens');
+      if (!built) return;
+      created.nodes++;
+      fitSection(built.parent);
+    }
+
+    var STEPS = {
+      collection: collectionStep, textStyles: textStylesStep, effectStyles: effectStylesStep,
+      require: requireStep, page: pageStep, section: sectionStep, build: buildStep,
+      component: componentStep, componentSet: componentSetStep,
+      colorSwatches: colorSwatchesStep, typeSpecimens: typeSpecimensStep
+    };
+    var stopped = false;
     for (var s = 0; s < recipe.steps.length; s++) {
       var step = recipe.steps[s] || {};
       var run = STEPS[step.do];
       if (!run) { report('step:' + step.do + ' is not a recipe step (' + Object.keys(STEPS).join(', ') + ')'); continue; }
-      await run(step);
+      if ((await run(step)) === false) { stopped = true; break; }
     }
 
     if (typeof globalThis.__bbOnDesignSystemChange === 'function') {
@@ -1797,6 +2100,7 @@ async function resolveSlotNode(params) {
     }
 
     var out = { ok: unresolved.length === 0, created: created, skipped: skipped };
+    if (stopped) out.stopped = true;
     if (unresolved.length) out.unresolved = unresolved;
     return out;
   };
@@ -1805,14 +2109,67 @@ async function resolveSlotNode(params) {
 })();
 
 // ============================================================================
-// BETTERBRIDGE — design-system status line in the plugin window.
+// BETTERBRIDGE — Sources (design system, icons) in the plugin window.
 // Posts BB_DS_STATUS to ui.html at startup (which also warms the library-token
 // cache so the first build doesn't pay for it), when the UI asks, when styles
-// change, and when strict mode or the manifest changes. Strict mode is
-// persisted per user in clientStorage.
+// or the page change, and when strict mode, icons or the manifest change.
+//
+// Several files can be connected to the bridge at once, each with its own
+// design system and icons. Each open file runs its own copy of this plugin,
+// so detection is naturally per file; the saved settings below are stored per
+// file as well (keyed by file key), in the user's clientStorage:
+//   bbStrictByFile   { fileKey: false }   "DS only" switched off for that file
+//   bbIconSets       { setId: iconSet }   every icon set this user connected
+//   bbIconSetByFile  { fileKey: setId }   which set each file uses
+//   bbHiddenActions  [actionId]           saved actions removed from the sheet
 // ============================================================================
+var bbFileKey = figma.fileKey || ('local:' + figma.root.name);
+var bbState = { strictByFile: {}, iconSets: {}, iconSetByFile: {} };
+
+function bbSave(key) {
+  var map = { bbStrictByFile: bbState.strictByFile, bbIconSets: bbState.iconSets, bbIconSetByFile: bbState.iconSetByFile };
+  return figma.clientStorage.setAsync(key, map[key]).catch(function () { /* non-critical */ });
+}
+
+function bbActivateIconSet() {
+  var id = bbState.iconSetByFile[bbFileKey];
+  globalThis.__bbSetIconSource(id && bbState.iconSets[id] ? bbState.iconSets[id] : null);
+}
+
+// A file with no chosen set picks one automatically when it's the icon
+// library itself, or already uses icons from a connected library.
+function bbAutoPickIconSet() {
+  if (bbState.iconSetByFile[bbFileKey]) return false;
+  var ids = Object.keys(bbState.iconSets);
+  if (!ids.length) return false;
+  var pick = null;
+  if (bbState.iconSets[bbFileKey]) pick = bbFileKey;
+  if (!pick) {
+    var used = globalThis.__bbDetectedIconKeys();
+    for (var i = 0; i < ids.length && !pick && used.length; i++) {
+      var icons = bbState.iconSets[ids[i]].icons;
+      for (var name in icons) {
+        if (icons.hasOwnProperty(name) && icons[name].key && used.indexOf(icons[name].key) !== -1) { pick = ids[i]; break; }
+      }
+    }
+  }
+  if (!pick) return false;
+  bbState.iconSetByFile[bbFileKey] = pick;
+  bbSave('bbIconSetByFile');
+  bbActivateIconSet();
+  return true;
+}
+
 function bbPostDesignSystemStatus(refresh) {
   return globalThis.designSystem({ refresh: !!refresh }).then(function (status) {
+    if (!status.icons.connected && bbAutoPickIconSet()) return globalThis.designSystem({});
+    return status;
+  }).then(function (status) {
+    status.fileName = figma.root.name;
+    status.iconSets = Object.keys(bbState.iconSets).map(function (id) {
+      return { id: id, name: bbState.iconSets[id].name, count: bbState.iconSets[id].count };
+    });
+    status.iconSetId = bbState.iconSetByFile[bbFileKey] || null;
     figma.ui.postMessage({ type: 'BB_DS_STATUS', data: status });
   }).catch(function (e) {
     figma.ui.postMessage({
@@ -1829,18 +2186,24 @@ function bbScheduleDesignSystemStatus() {
 }
 globalThis.__bbOnDesignSystemChange = bbScheduleDesignSystemStatus;
 
-// Per-user plugin state: strict mode, the connected icon set, and saved
-// actions the user removed from their list. clientStorage is shared across
-// every file this user opens, which is what lets an icon set connected in
-// its library file work everywhere else.
+function bbGet(key) { return figma.clientStorage.getAsync(key).catch(function () { return undefined; }); }
+
 Promise.all([
-  figma.clientStorage.getAsync('bbStrict').catch(function () { return undefined; }),
-  figma.clientStorage.getAsync('bbIconSource').catch(function () { return undefined; }),
-  figma.clientStorage.getAsync('bbHiddenActions').catch(function () { return undefined; })
+  bbGet('bbStrictByFile'), bbGet('bbIconSets'), bbGet('bbIconSetByFile'), bbGet('bbHiddenActions'),
+  bbGet('bbIconSource') // r4 beta stored one set for everyone; folded into bbIconSets below
 ]).then(function (stored) {
-  if (typeof stored[0] === 'boolean') globalThis.__bbSetStrict(stored[0]);
-  if (stored[1] && stored[1].icons) globalThis.__bbSetIconSource(stored[1]);
-  figma.ui.postMessage({ type: 'BB_HIDDEN_ACTIONS', ids: Array.isArray(stored[2]) ? stored[2] : [] });
+  bbState.strictByFile = stored[0] || {};
+  bbState.iconSets = stored[1] || {};
+  bbState.iconSetByFile = stored[2] || {};
+  if (stored[4] && stored[4].icons) {
+    var oldId = stored[4].fileKey || ('local:' + stored[4].name);
+    if (!bbState.iconSets[oldId]) bbState.iconSets[oldId] = stored[4];
+    bbSave('bbIconSets');
+    figma.clientStorage.deleteAsync('bbIconSource').catch(function () {});
+  }
+  globalThis.__bbSetStrict(bbState.strictByFile[bbFileKey] !== false);
+  bbActivateIconSet();
+  figma.ui.postMessage({ type: 'BB_HIDDEN_ACTIONS', ids: Array.isArray(stored[3]) ? stored[3] : [] });
   bbPostDesignSystemStatus(false);
 });
 
@@ -2027,16 +2390,21 @@ figma.ui.onmessage = async (msg) => {
       figma.ui.postMessage({ type: 'BB_RECIPE_RESULT', actionId: msg.actionId, success: false, error: rrErr });
     }
   }
-  // Plugin window: Icons → Connect. Saves this file's icon components for the user.
+  // Plugin window: Icons → "Connect icons from this file". Saves this file's
+  // icon components as a set for the user, and uses it for this file.
   else if (msg.type === 'BB_ICONS_CONNECT') {
     try {
       var iconSet = await globalThis.iconSummary();
       if (!iconSet.count) {
         figma.ui.postMessage({ type: 'BB_ICONS_RESULT', success: false, error: 'No icons found in this file. Icons are components on a page named "Icons", or components named "Icon/…".' });
       } else {
+        var setId = iconSet.fileKey || ('local:' + iconSet.name);
         iconSet.savedAt = Date.now();
-        await figma.clientStorage.setAsync('bbIconSource', iconSet);
-        globalThis.__bbSetIconSource(iconSet);
+        bbState.iconSets[setId] = iconSet;
+        bbState.iconSetByFile[bbFileKey] = setId;
+        await bbSave('bbIconSets');
+        await bbSave('bbIconSetByFile');
+        bbActivateIconSet();
         figma.ui.postMessage({ type: 'BB_ICONS_RESULT', success: true, name: iconSet.name, count: iconSet.count });
         bbPostDesignSystemStatus(false);
       }
@@ -2044,19 +2412,35 @@ figma.ui.onmessage = async (msg) => {
       figma.ui.postMessage({ type: 'BB_ICONS_RESULT', success: false, error: error && error.message ? error.message : String(error) });
     }
   }
-  else if (msg.type === 'BB_ICONS_DISCONNECT') {
-    globalThis.__bbSetIconSource(null);
-    figma.clientStorage.deleteAsync('bbIconSource').catch(function () { /* non-critical */ });
+  // Plugin window: pick which saved icon set this file uses ('' = none).
+  else if (msg.type === 'BB_ICONS_SELECT') {
+    if (msg.id && bbState.iconSets[msg.id]) bbState.iconSetByFile[bbFileKey] = msg.id;
+    else bbState.iconSetByFile[bbFileKey] = 'none'; // an explicit "none" also stops auto-picking
+    bbSave('bbIconSetByFile');
+    bbActivateIconSet();
+    bbPostDesignSystemStatus(false);
+  }
+  // Plugin window: forget a saved icon set in every file.
+  else if (msg.type === 'BB_ICONS_FORGET') {
+    delete bbState.iconSets[msg.id];
+    for (var fk in bbState.iconSetByFile) {
+      if (bbState.iconSetByFile.hasOwnProperty(fk) && bbState.iconSetByFile[fk] === msg.id) delete bbState.iconSetByFile[fk];
+    }
+    bbSave('bbIconSets');
+    bbSave('bbIconSetByFile');
+    bbActivateIconSet();
     bbPostDesignSystemStatus(false);
   }
   // Plugin window: saved actions the user removed from their list.
   else if (msg.type === 'BB_SET_HIDDEN_ACTIONS') {
     figma.clientStorage.setAsync('bbHiddenActions', Array.isArray(msg.ids) ? msg.ids : []).catch(function () { /* non-critical */ });
   }
-  // Plugin window: the "DS only" toggle.
+  // Plugin window: the "DS only" toggle, for this file.
   else if (msg.type === 'BB_SET_STRICT') {
     globalThis.__bbSetStrict(!!msg.value);
-    figma.clientStorage.setAsync('bbStrict', !!msg.value).catch(function () { /* non-critical */ });
+    if (msg.value) delete bbState.strictByFile[bbFileKey];
+    else bbState.strictByFile[bbFileKey] = false;
+    bbSave('bbStrictByFile');
     bbPostDesignSystemStatus(false);
   }
 
@@ -8833,6 +9217,7 @@ figma.loadAllPagesAsync().then(function() {
 
   // Page change listener — tracks which page the user is viewing
   figma.on('currentpagechange', function() {
+    bbScheduleDesignSystemStatus(); // BetterBridge: icons in use are detected per page
     figma.ui.postMessage({
       type: 'PAGE_CHANGE',
       data: {
